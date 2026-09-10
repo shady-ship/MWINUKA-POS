@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1a3a6b;
+  --color-primary-dark: #0f2548;
+  --color-primary-light: #2a5298;
+  --color-accent: #2563eb;
+  --color-accent-light: #3b82f6;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-sidebar: #0f2548;
+  --color-card: #ffffff;
+  --color-surface: #f1f5f9;
+  --color-heading: #1e293b;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+}
+
+.invoice {
+  width: 80mm;
+  margin: 0 auto;
+  padding: 10mm;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #000;
+  background: #fff;
+}
+
+.invoice-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.invoice-logo {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.invoice-company {
+  font-size: 14px;
+  font-weight: bold;
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.invoice-tagline {
+  font-style: italic;
+  font-size: 10px;
+  margin: 2px 0;
+  font-family: Arial, sans-serif;
+}
+
+.invoice-address,
+.invoice-phone {
+  font-size: 10px;
+  margin: 1px 0;
+  font-family: Arial, sans-serif;
+}
+
+.invoice-title {
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  margin: 8px 0;
+  font-family: Arial, sans-serif;
+  letter-spacing: 1px;
+}
+
+.invoice-divider {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+
+.invoice-divider-sm {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 4px 0;
+}
+
+.invoice-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.invoice-info-left,
+.invoice-info-right {
+  font-family: 'Courier New', monospace;
+}
+
+.invoice-label {
+  display: inline-block;
+  min-width: 70px;
+}
+
+.invoice-customer {
+  font-size: 11px;
+  line-height: 1.8;
+  font-family: 'Courier New', monospace;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+}
+
+.invoice-table th {
+  text-align: left;
+  font-weight: bold;
+  padding: 4px 0;
+  border-bottom: 1px solid #000;
+  font-size: 9px;
+}
+
+.invoice-table td {
+  padding: 3px 0;
+  vertical-align: top;
+}
+
+.invoice-table .right {
+  text-align: right;
+}
+
+.invoice-totals {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  text-align: right;
+  padding: 0 0 0 50%;
+}
+
+.invoice-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.invoice-grand-total {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.invoice-footer {
+  text-align: center;
+  margin-top: 12px;
+}
+
+.invoice-thankyou {
+  font-style: italic;
+  font-size: 11px;
+  font-weight: bold;
+  margin: 2px 0;
+  font-family: Arial, sans-serif;
+}
+
+.invoice-thankyou-en {
+  font-style: italic;
+  font-size: 9px;
+  font-family: Arial, sans-serif;
+  margin: 2px 0;
+}
+
+.invoice-smile {
+  font-size: 18px;
+  margin-top: 6px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    display: block !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .invoice {
+    margin: 0;
+    padding: 5mm;
+    box-shadow: none;
+    border: none;
+  }
+}
+
+.print-area {
+  display: none;
+}
