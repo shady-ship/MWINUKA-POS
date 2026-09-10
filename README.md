@@ -92,10 +92,6 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-The application is available at:
-
-- Frontend: http://localhost:5173
-- Backend health check: http://localhost:5000/api/health
 
 On Windows with XAMPP configured, `start.bat` can start the database, backend, and frontend together.
 
@@ -154,27 +150,6 @@ frontend/
   src/App.jsx      Frontend routing and application shell
 ```
 
-## API Routes
 
-The backend exposes these route groups under `http://localhost:5000/api`:
 
-- `/auth`
-- `/products`
-- `/orders`
-- `/customers`
-- `/reports`
-- `/health`
 
-Most business routes require a valid authentication token.
-
-## Production Notes
-
-- Set a strong, unique `JWT_SECRET`.
-- Do not use the seeded passwords in production.
-- Keep `backend/.env` outside version control.
-- Use a managed MySQL instance or a secured production database.
-- Configure the frontend API URL for the deployed backend instead of relying on `localhost`.
-
-## License
-
-No license has been specified for this project yet.# MWINUKA-POS
