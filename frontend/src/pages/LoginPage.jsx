@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Lock, Eye, EyeOff, ShoppingCart, Shield } from 'lucide-react'
+import { User, Lock, Eye, EyeOff, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
@@ -94,32 +94,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="mt-6 pt-4 border-t border-line">
-            <p className="text-[10px] text-muted text-center mb-3">Demo Accounts</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => { setEmail('admin@mwinuka.co.tz'); setPassword('admin123') }}
-                className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-              >
-                <Shield className="w-4 h-4 text-primary" />
-                <div className="text-left">
-                  <p className="text-[10px] font-semibold text-heading">Admin</p>
-                  <p className="text-[8px] text-muted">admin@mwinuka.co.tz</p>
-                </div>
-              </button>
-              <button
-                onClick={() => { setEmail('john@mwinuka.co.tz'); setPassword('staff123') }}
-                className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-              >
-                <User className="w-4 h-4 text-accent" />
-                <div className="text-left">
-                  <p className="text-[10px] font-semibold text-heading">Sales Staff</p>
-                  <p className="text-[8px] text-muted">john@mwinuka.co.tz</p>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

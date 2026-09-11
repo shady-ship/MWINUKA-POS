@@ -37,7 +37,6 @@ export default function HomePage() {
               <p className="text-xs text-blue-200">Available Stock Items</p>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <ShoppingCart className="w-6 h-6 mx-auto mb-2 text-blue-200" />
               <p className="text-2xl font-bold">TSh {todaySales.toLocaleString()}</p>
               <p className="text-xs text-blue-200">Today's Sales</p>
             </div>
