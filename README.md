@@ -101,8 +101,8 @@ The first backend startup seeds these accounts when the `users` table is empty:
 
 | Role | Email | Password |
 | --- | --- | --- |
-| Administrator | `admin@mwinuka.co.tz` | `admin123` |
-| Sales staff | `john@mwinuka.co.tz` | `staff123` |
+| Administrator | `admin@mwinuka.co.tz` | ` |
+| Sales staff | `john@mwinuka.co.tz` | `` |
 
 These credentials are for local development only. Change or remove them before deploying.
 
