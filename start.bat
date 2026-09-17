@@ -6,6 +6,13 @@ if errorlevel 1 (
     timeout /t 5 /nobreak >nul
 )
 
+echo Stopping old servers...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5000" ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do taskkill /PID %%a /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Backend" /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Frontend" /F >nul 2>&1
+timeout /t 2 /nobreak >nul
+
 echo Starting Backend...
 cd /d "%~dp0backend"
 start "Backend" node server.js

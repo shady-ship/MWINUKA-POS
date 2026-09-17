@@ -1,23 +1,41 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AppContext } from './context'
+import { useAuth } from './AuthContext'
 
 const API = 'http://localhost:5000/api'
+const TYPE_KEY = { Retail: 'retail_price', Wholesale: 'wholesale_price', Optional: 'optional_price' }
+let nextLineId = 1
+
+const DEFAULT_SETTINGS = {
+  business_name: 'Mwinuka Enterprises Co Ltd',
+  tagline: 'Quality Products, Better Life',
+  address: 'Mbeya, Tanzania',
+  phone: '0712 345 678',
+  email: 'info@mwinuka.co.tz',
+  receipt_thankyou: 'Asante sana na karibu tena!',
+  receipt_thankyou_en: 'Thank you very much and welcome again!',
+  currency: 'TSh',
+}
 
 export function AppProvider({ children }) {
+  const { user } = useAuth()
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState([])
   const [ordersList, setOrdersList] = useState([])
   const [customersList, setCustomersList] = useState([])
+  const [usersList, setUsersList] = useState([])
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/products`)
+      const includeInactive = user?.role === 'admin' ? '?includeInactive=true' : ''
+      const res = await fetch(`${API}/products${includeInactive}`)
       const data = await res.json()
       if (Array.isArray(data)) setProducts(data)
     } catch (err) {
       console.error('Failed to fetch products:', err)
     }
-  }, [])
+  }, [user])
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -39,11 +57,87 @@ export function AppProvider({ children }) {
     }
   }, [])
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/auth/users`)
+      const data = await res.json()
+      if (Array.isArray(data)) setUsersList(data)
+    } catch (err) {
+      console.error('Failed to fetch users:', err)
+    }
+  }, [])
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/settings`)
+      const data = await res.json()
+      if (data && typeof data === 'object') setSettings(data)
+    } catch (err) {
+      console.error('Failed to fetch settings:', err)
+    }
+  }, [])
+
+  const updateSettings = async (entries) => {
+    try {
+      const res = await fetch(`${API}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entries),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update settings')
+      setSettings(data)
+      return data
+    } catch (err) {
+      console.error('Failed to update settings:', err)
+      throw err
+    }
+  }
+
   useEffect(() => {
     fetchProducts()
     fetchOrders()
     fetchCustomers()
-  }, [fetchProducts, fetchOrders, fetchCustomers])
+    fetchUsers()
+    fetchSettings()
+  }, [fetchProducts, fetchOrders, fetchCustomers, fetchUsers, fetchSettings])
+
+  const getUnitPrice = (product, unit, type, manualPrice) => {
+    const prices = product.prices || []
+    const row = prices.find(p => p.unit === unit)
+    if (!row) return null
+    const col = TYPE_KEY[type] || 'retail_price'
+    if (type === 'Optional' && manualPrice) {
+      return { unit, price: Number(manualPrice), price_type: type }
+    }
+    const val = row[col]
+    if (val == null) return null
+    return { unit, price: Number(val), price_type: type }
+  }
+
+  const getAvailableTypes = (prices, unit) => {
+    const row = (prices || []).find(p => p.unit === unit)
+    if (!row) return []
+    return ['Retail', 'Wholesale', 'Optional'].filter(t => row[TYPE_KEY[t]] != null && Number(row[TYPE_KEY[t]]) > 0)
+  }
+
+  const getDefaultType = (prices, unit) => {
+    const types = getAvailableTypes(prices, unit)
+    if (types.includes('Retail')) return 'Retail'
+    if (types.includes('Wholesale')) return 'Wholesale'
+    return types[0] || 'Retail'
+  }
+
+  const getFirstAvailableUnit = (prices) => {
+    const row = (prices || []).find(p => p.unit === 'Piece') || (prices || [])[0]
+    return row?.unit || null
+  }
+
+  const priceOf = (prices, unit, type) => {
+    const row = (prices || []).find(p => p.unit === unit)
+    if (!row) return 0
+    return Number(row[TYPE_KEY[type]]) || 0
+  }
 
   const addProduct = async (product) => {
     try {
@@ -52,11 +146,14 @@ export function AppProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product),
       })
-      const newP = await res.json()
-      setProducts(prev => [...prev, newP])
-      return newP
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to add product')
+      setProducts(prev => [...prev, data])
+      await fetchProducts()
+      return data
     } catch (err) {
       console.error('Failed to add product:', err)
+      throw err
     }
   }
 
@@ -68,9 +165,13 @@ export function AppProvider({ children }) {
         body: JSON.stringify(data),
       })
       const updated = await res.json()
+      if (!res.ok) throw new Error(updated.error || 'Failed to update product')
       setProducts(prev => prev.map(p => p.id === id ? updated : p))
+      await fetchProducts()
+      return updated
     } catch (err) {
       console.error('Failed to update product:', err)
+      throw err
     }
   }
 
@@ -78,75 +179,144 @@ export function AppProvider({ children }) {
     try {
       await fetch(`${API}/products/${id}`, { method: 'DELETE' })
       setProducts(prev => prev.filter(p => p.id !== id))
-      setCart(prev => prev.filter(item => item.id !== id))
+      setCart(prev => prev.filter(item => item.product_id !== id))
+      await fetchProducts()
     } catch (err) {
       console.error('Failed to delete product:', err)
     }
   }
 
+  const toggleProductActive = async (id, active) => {
+    try {
+      await fetch(`${API}/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active }),
+      })
+      await fetchProducts()
+    } catch (err) {
+      console.error('Failed to toggle product:', err)
+    }
+  }
+
   const addToCart = (product) => {
+    const unit = getFirstAvailableUnit(product.prices)
+    if (!unit) return
+    const type = getDefaultType(product.prices, unit)
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id)
+      const existing = prev.find(item => item.product_id === product.id && item.selectedUnit === unit && item.selectedPriceType === type)
       if (existing) {
-        return prev.map(item =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        )
-      }
-      let selectedUnit = 'Piece'
-      let selectedPrice = product.price
-      if (!selectedPrice && product.price_dozen) {
-        selectedUnit = 'Dozen'
-        selectedPrice = product.price_dozen
-      } else if (!selectedPrice && product.price_carton) {
-        selectedUnit = 'Carton'
-        selectedPrice = product.price_carton
+        return prev.map(item => item.lineId === existing.lineId ? { ...item, quantity: item.quantity + 1 } : item)
       }
       return [...prev, {
+        lineId: `L${nextLineId++}`,
         ...product,
-        quantity: 1,
-        selectedUnit,
-        selectedPrice,
         product_id: product.id,
+        quantity: 1,
+        selectedUnit: unit,
+        selectedPriceType: type,
+        selectedPrice: priceOf(product.prices, unit, type),
+        manualOverride: null,
       }]
     })
   }
 
-  const updateCartItemUnit = (productId, selectedUnit) => {
+  const addPackSplit = (product, cartons, looseQty, looseUnit, priceType) => {
+    if (!product || (cartons < 1 && looseQty < 1)) return
+    setCart(prev => {
+      const lines = []
+      if (cartons > 0) {
+        const cp = priceOf(product.prices, 'Carton', priceType)
+        if (cp > 0) {
+          lines.push({
+            lineId: `L${nextLineId++}`,
+            ...product,
+            product_id: product.id,
+            quantity: cartons,
+            selectedUnit: 'Carton',
+            selectedPriceType: priceType,
+            selectedPrice: cp,
+            manualOverride: null,
+          })
+        }
+      }
+      if (looseQty > 0 && looseUnit) {
+        const lp = priceOf(product.prices, looseUnit, priceType)
+        if (lp > 0) {
+          lines.push({
+            lineId: `L${nextLineId++}`,
+            ...product,
+            product_id: product.id,
+            quantity: looseQty,
+            selectedUnit: looseUnit,
+            selectedPriceType: priceType,
+            selectedPrice: lp,
+            manualOverride: null,
+          })
+        }
+      }
+      return [...prev, ...lines]
+    })
+  }
+
+  const updateCartItemUnit = (lineId, unit) => {
     setCart(prev => prev.map(item => {
-      if (item.id !== productId) return item
-      let selectedPrice = item.price
-      if (selectedUnit === 'Dozen' && item.price_dozen) selectedPrice = item.price_dozen
-      else if (selectedUnit === 'Carton' && item.price_carton) selectedPrice = item.price_carton
-      else selectedPrice = item.price
-      return { ...item, selectedUnit, selectedPrice }
+      if (item.lineId !== lineId) return item
+      const availableTypes = getAvailableTypes(item.prices, unit)
+      let type = item.selectedPriceType
+      if (!availableTypes.includes(type)) type = getDefaultType(item.prices, unit)
+      const price = priceOf(item.prices, unit, type)
+      return { ...item, selectedUnit: unit, selectedPriceType: type, selectedPrice: price, manualOverride: null }
     }))
   }
 
-  const updateCartQuantity = (productId, quantity) => {
+  const updateCartPriceType = (lineId, type) => {
+    setCart(prev => prev.map(item => {
+      if (item.lineId !== lineId) return item
+      const price = priceOf(item.prices, item.selectedUnit, type)
+      return { ...item, selectedPriceType: type, selectedPrice: price, manualOverride: null }
+    }))
+  }
+
+  const updateCartPrice = (lineId, value) => {
+    setCart(prev => prev.map(item => {
+      if (item.lineId !== lineId) return item
+      const num = Number(value) || 0
+      const basePrice = priceOf(item.prices, item.selectedUnit, item.selectedPriceType)
+      return {
+        ...item,
+        manualOverride: num > 0 ? num : null,
+        selectedPrice: num > 0 ? num : basePrice,
+      }
+    }))
+  }
+
+  const updateCartQuantity = (lineId, quantity) => {
     if (quantity <= 0) {
-      setCart(prev => prev.filter(item => item.id !== productId))
+      setCart(prev => prev.filter(item => item.lineId !== lineId))
     } else {
       setCart(prev =>
         prev.map(item =>
-          item.id === productId ? { ...item, quantity } : item
+          item.lineId === lineId ? { ...item, quantity } : item
         )
       )
     }
   }
 
-  const removeFromCart = (productId) => {
-    setCart(prev => prev.filter(item => item.id !== productId))
+  const removeFromCart = (lineId) => {
+    setCart(prev => prev.filter(item => item.lineId !== lineId))
   }
 
   const clearCart = () => setCart([])
 
-  const placeOrder = async (customerName, salesmanName, paymentMethod, notes) => {
+  const placeOrder = async (customerName, salesmanId, paymentMethod, notes) => {
     try {
       const items = cart.map(item => ({
-        product_id: item.id,
+        product_id: item.product_id,
         quantity: item.quantity,
         unit: item.selectedUnit || 'Piece',
-        price: item.selectedPrice || item.price,
+        price_type: item.selectedPriceType || 'Retail',
+        price: item.selectedPrice || 0,
       }))
 
       const res = await fetch(`${API}/orders`, {
@@ -154,7 +324,7 @@ export function AppProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_name: customerName,
-          salesman_id: 1,
+          salesman_id: salesmanId || user?.id || 1,
           items,
           payment_method: paymentMethod,
           notes,
@@ -250,14 +420,60 @@ export function AppProvider({ children }) {
     }
   }
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.selectedPrice || item.price) * item.quantity, 0)
+  const addUser = async (userData) => {
+    try {
+      const res = await fetch(`${API}/auth/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to add user')
+        err.status = res.status
+        throw err
+      }
+      await fetchUsers()
+      return data
+    } catch (err) {
+      console.error('Failed to add user:', err)
+      throw err
+    }
+  }
+
+  const updateUser = async (id, data) => {
+    try {
+      await fetch(`${API}/auth/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      await fetchUsers()
+    } catch (err) {
+      console.error('Failed to update user:', err)
+    }
+  }
+
+  const deleteUser = async (id) => {
+    try {
+      await fetch(`${API}/auth/users/${id}`, { method: 'DELETE' })
+      await fetchUsers()
+    } catch (err) {
+      console.error('Failed to delete user:', err)
+    }
+  }
+
+  const cartTotal = cart.reduce((sum, item) => sum + ((item.selectedPrice || 0) * (Number(item.quantity) || 0)), 0)
 
   return (
     <AppContext.Provider value={{
-      products, addProduct, updateProduct, deleteProduct,
-      cart, addToCart, updateCartQuantity, updateCartItemUnit, removeFromCart, clearCart, cartTotal,
+      products, addProduct, updateProduct, deleteProduct, toggleProductActive,
+      cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, removeFromCart, clearCart, cartTotal,
       placeOrder, ordersList, updateOrderStatus, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
       customersList, addCustomer, updateCustomer, deleteCustomer, fetchCustomers,
+      usersList, addUser, updateUser, deleteUser, fetchUsers,
+      settings, updateSettings, fetchSettings,
+      getUnitPrice, getAvailableTypes,
     }}>
       {children}
     </AppContext.Provider>

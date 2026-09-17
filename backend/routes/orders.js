@@ -6,7 +6,9 @@ const router = Router()
 router.get('/', async (req, res) => {
   try {
     const rows = await query(`
-      SELECT o.*, u.name as salesman_name, c.name as customer_name
+      SELECT o.id, o.order_no, o.customer_id, o.salesman_id, o.total, o.payment_method, o.notes, o.status,
+             DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date, o.created_at,
+             u.name as salesman_name, c.name as customer_name
       FROM orders o
       LEFT JOIN users u ON o.salesman_id = u.id
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -21,7 +23,9 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const order = await queryOne(`
-      SELECT o.*, u.name as salesman_name, c.name as customer_name
+      SELECT o.id, o.order_no, o.customer_id, o.salesman_id, o.total, o.payment_method, o.notes, o.status,
+             DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date, o.created_at,
+             u.name as salesman_name, c.name as customer_name
       FROM orders o
       LEFT JOIN users u ON o.salesman_id = u.id
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -55,7 +59,7 @@ router.post('/', async (req, res) => {
       customerId = customer.id
     }
 
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const total = items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0)
     const orderNo = `ORD${String(Date.now()).slice(-6)}`
 
     const orderResult = await execute(
@@ -66,13 +70,13 @@ router.post('/', async (req, res) => {
 
     for (const item of items) {
       await execute(
-        'INSERT INTO order_items (order_id, product_id, quantity, unit, unit_price, total) VALUES (?, ?, ?, ?, ?, ?)',
-        [orderId, item.product_id, item.quantity, item.unit || 'Piece', item.price, item.price * item.quantity]
+        'INSERT INTO order_items (order_id, product_id, quantity, unit, price_type, unit_price, total) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [orderId, item.product_id, item.quantity, item.unit || 'Piece', item.price_type || 'Retail', item.price || 0, item.price * item.quantity]
       )
       await execute('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id])
     }
 
-    const order = await queryOne('SELECT * FROM orders WHERE id = ?', [orderId])
+    const order = await queryOne('SELECT id, order_no, customer_id, salesman_id, total, payment_method, notes, status, DATE_FORMAT(order_date, "%Y-%m-%d") as order_date FROM orders WHERE id = ?', [orderId])
     res.status(201).json(order)
   } catch (err) {
     res.status(500).json({ error: err.message })

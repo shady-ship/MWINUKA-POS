@@ -1,6 +1,8 @@
 import { ShoppingCart } from 'lucide-react'
+import { useApp } from '../context/useApp'
 
 export default function InvoicePrint({ order, items, onClose }) {
+  const { settings } = useApp()
   const handlePrint = () => {
     window.print()
   }
@@ -10,6 +12,7 @@ export default function InvoicePrint({ order, items, onClose }) {
   const subtotal = items.reduce((sum, item) => sum + (Number(item.unit_price) || 0) * item.quantity, 0)
   const total = Number(order.total) || 0
   const discount = subtotal - total
+  const cur = (settings.currency || 'TSh').toUpperCase()
 
   return (
     <>
@@ -30,10 +33,11 @@ export default function InvoicePrint({ order, items, onClose }) {
             <div className="invoice-logo">
               <ShoppingCart size={28} />
             </div>
-            <h1 className="invoice-company">MWINUKA ENTERPRISES CO LTD</h1>
-            <p className="invoice-tagline">Quality Products, Better Life</p>
-            <p className="invoice-address">Dar es Salaam, Tanzania</p>
-            <p className="invoice-phone">Tel: 0712 345 678</p>
+            <h1 className="invoice-company">{(settings.business_name || 'Mwinuka Enterprises Co Ltd').toUpperCase()}</h1>
+            {settings.tagline && <p className="invoice-tagline">{settings.tagline}</p>}
+            {settings.address && <p className="invoice-address">{settings.address}</p>}
+            {settings.phone && <p className="invoice-phone">Tel: {settings.phone}</p>}
+            {settings.email && <p className="invoice-phone">Email: {settings.email}</p>}
           </div>
 
           <hr className="invoice-divider" />
@@ -68,8 +72,8 @@ export default function InvoicePrint({ order, items, onClose }) {
                 <th>ITEM NAME</th>
                 <th>QTY</th>
                 <th>UNIT</th>
-                <th className="right">PRICE<br/>(TSH)</th>
-                <th className="right">TOTAL<br/>(TSH)</th>
+                <th className="right">PRICE<br/>({cur})</th>
+                <th className="right">TOTAL<br/>({cur})</th>
               </tr>
             </thead>
             <tbody>
@@ -117,8 +121,8 @@ export default function InvoicePrint({ order, items, onClose }) {
           <hr className="invoice-divider" />
 
           <div className="invoice-footer">
-            <p className="invoice-thankyou">Asante sana na karibu tena!</p>
-            <p className="invoice-thankyou-en">Thank you very much and welcome again!</p>
+            {settings.receipt_thankyou && <p className="invoice-thankyou">{settings.receipt_thankyou}</p>}
+            {settings.receipt_thankyou_en && <p className="invoice-thankyou-en">{settings.receipt_thankyou_en}</p>}
             <p className="invoice-smile">:)</p>
           </div>
         </div>

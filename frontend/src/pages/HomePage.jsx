@@ -6,8 +6,9 @@ export default function HomePage() {
   const { products, ordersList } = useApp()
   const totalProducts = products.length
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0)
-  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  const todaySales = ordersList.filter(o => o.date === today).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todaySales = ordersList.filter(o => (o.order_date || '').slice(0, 10) === today).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
   const topProducts = products.slice(0, 4)
 
   const quickActions = [
@@ -72,7 +73,15 @@ export default function HomePage() {
               {topProducts.map((product) => (
                 <div key={product.id} className="bg-white rounded-xl p-4 shadow-sm border border-line">
                   <h4 className="font-semibold text-sm text-heading">{product.name}</h4>
-                  <p className="text-accent font-bold text-sm mt-1">TSh {(Number(product.price) || 0).toLocaleString()}</p>
+                  <p className="text-accent font-bold text-sm mt-1">
+                    {(product.prices || []).filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(x => {
+                      const parts = []
+                      if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
+                      if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
+                      if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
+                      return `${x.unit} ${parts.join('|') || '—'}`
+                    }).join('  •  ') || '—'}
+                  </p>
                   <p className={`text-xs mt-1 ${product.stock > 20 ? 'text-success' : product.stock > 0 ? 'text-warning' : 'text-danger'}`}>
                     {product.stock > 20 ? 'In Stock' : product.stock > 0 ? `Low Stock (${product.stock})` : 'Out of Stock'}
                   </p>

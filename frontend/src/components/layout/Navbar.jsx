@@ -11,7 +11,7 @@ export default function Navbar({ showNav = true }) {
   return (
     <header className="bg-primary text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={user?.role === 'admin' ? '/admin' : '/'} className="flex items-center gap-2">
           <div className="bg-white rounded-lg p-1.5">
             <ShoppingCart className="w-5 h-5 text-primary" />
           </div>
@@ -42,7 +42,7 @@ export default function Navbar({ showNav = true }) {
             </Link>
           )}
           <div className="text-right">
-            <p className="text-xs text-blue-200">Sales Staff</p>
+            <p className="text-xs text-blue-200">{user?.role === 'admin' ? 'Admin' : 'Sales Staff'}</p>
             <p className="text-sm font-medium">{user?.name || 'Sales Staff'}</p>
           </div>
           <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
@@ -58,6 +58,7 @@ export default function Navbar({ showNav = true }) {
         <nav className="bg-primary-dark">
           <div className="max-w-7xl mx-auto px-4 flex gap-1">
             {[
+              ...(user?.role === 'admin' ? [{ label: 'ADMIN PANEL', to: '/admin' }] : []),
               { label: 'HOME', to: '/' },
               { label: 'PRODUCTS', to: '/products' },
               { label: 'ORDERS', to: '/orders' },

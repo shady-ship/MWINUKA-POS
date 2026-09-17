@@ -7,11 +7,13 @@ export default function AdminDashboard() {
 
   const totalProducts = products.length
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0)
-  const lowStockProducts = products.filter(p => p.stock <= 20 && p.stock > 0)
+  const lowStockProducts = products.filter(p => p.stock <= (p.min_stock || 20) && p.stock > 0)
   const outOfStockProducts = products.filter(p => p.stock === 0)
 
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  const todayOrders = ordersList.filter(o => o.date === today)
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayOrders = ordersList.filter(o => (o.order_date || '').slice(0, 10) === todayStr)
   const todaySales = todayOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
   const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
   const totalOrders = ordersList.length
@@ -94,7 +96,15 @@ export default function AdminDashboard() {
                 {topSelling.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0">
                     <td className="py-2.5"><span className="text-xs font-semibold text-heading">{p.name}</span></td>
-                    <td className="py-2.5 text-xs text-heading text-right">TSh {(Number(p.price) || 0).toLocaleString()}</td>
+                    <td className="py-2.5 text-xs text-heading text-right">
+                      {(p.prices || []).filter(x => x.retail_price != null || x.wholesale_price != null || x.optional_price != null).map(x => {
+                        const parts = []
+                        if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
+                        if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
+                        if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
+                        return `${x.unit} ${parts.join('|') || '—'}`
+                      }).join('  •  ') || '—'}
+                    </td>
                     <td className="py-2.5 text-xs font-semibold text-heading text-right">{p.stock}</td>
                   </tr>
                 ))}

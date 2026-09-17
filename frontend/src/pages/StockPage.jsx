@@ -53,7 +53,7 @@ export default function StockPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-line">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted">Product</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted">Price/Pc (TSh)</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted">Prices (TSh)</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-muted">Stock</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted">Status</th>
               </tr>
@@ -66,7 +66,15 @@ export default function StockPage() {
                       <p className="text-sm font-semibold text-heading">{product.name}</p>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-heading text-right">TSh {(Number(product.price) || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-heading text-right">
+                    {(product.prices || []).filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(x => {
+                      const parts = []
+                      if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
+                      if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
+                      if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
+                      return `${x.unit} ${parts.join('|') || '—'}`
+                    }).join('  •  ') || '—'}
+                  </td>
                   <td className="px-4 py-3 text-sm font-semibold text-heading text-right">{product.stock}</td>
                   <td className="px-4 py-3 text-center">
                     {product.stock === 0 ? (

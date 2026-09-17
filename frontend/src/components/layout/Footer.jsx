@@ -1,11 +1,15 @@
+import { useApp } from '../../context/useApp'
+
 export default function Footer() {
+  const { settings } = useApp()
+  const name = settings.business_name || 'Mwinuka Enterprises Co Ltd'
   return (
     <footer className="bg-primary-dark text-white">
       <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div>
           <h3 className="font-bold text-sm mb-3">ABOUT US</h3>
           <p className="text-blue-200 text-xs leading-relaxed">
-            Mwinuka Enterprises Co Ltd<br />
+            {name}<br />
             is your trusted store for<br />
             quality products.
           </p>
@@ -23,14 +27,14 @@ export default function Footer() {
         <div>
           <h3 className="font-bold text-sm mb-3">CONTACT US</h3>
           <ul className="space-y-1.5 text-blue-200 text-xs">
-            <li>📞 Phone: 0712 345 678</li>
-            <li>✉️ Email: info@mwinuka.co.tz</li>
-            <li>📍 Dar es Salaam, Tanzania</li>
+            <li>📞 Phone: {settings.phone || '—'}</li>
+            <li>✉️ Email: {settings.email || '—'}</li>
+            <li>📍 {settings.address || '—'}</li>
           </ul>
         </div>
       </div>
       <div className="border-t border-white/10 py-4 text-center text-xs text-blue-300">
-        © 2025 Mwinuka Enterprises Co Ltd. All Rights Reserved.
+        © 2025 {name}. All Rights Reserved.
       </div>
     </footer>
   )

@@ -4,8 +4,9 @@ import { useApp } from '../../context/useApp'
 
 export default function AdminSales() {
   const { ordersList } = useApp()
-  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  const todaySales = ordersList.filter(o => o.date === today).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todaySales = ordersList.filter(o => (o.order_date || '').slice(0, 10) === today).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
   const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
 
   const weeklySales = (() => {
@@ -13,9 +14,9 @@ export default function AdminSales() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-      const sales = ordersList.filter(o => o.date === dateStr).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+      const sales = ordersList.filter(o => (o.order_date || '').slice(0, 10) === dateStr).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
       days.push({ date: label, sales })
     }
     return days

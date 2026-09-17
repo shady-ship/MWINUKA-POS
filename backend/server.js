@@ -7,6 +7,7 @@ import productRoutes from './routes/products.js'
 import orderRoutes from './routes/orders.js'
 import reportRoutes from './routes/reports.js'
 import customerRoutes from './routes/customers.js'
+import settingsRoutes from './routes/settings.js'
 
 dotenv.config()
 
@@ -27,6 +28,7 @@ async function start() {
   app.use('/api/orders', orderRoutes)
   app.use('/api/reports', reportRoutes)
   app.use('/api/customers', customerRoutes)
+  app.use('/api/settings', settingsRoutes)
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() })

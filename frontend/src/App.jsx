@@ -17,6 +17,7 @@ import AdminStock from './pages/admin/AdminStock'
 import AdminSales from './pages/admin/AdminSales'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminCustomers from './pages/admin/AdminCustomers'
+import AdminUsers from './pages/admin/AdminUsers'
 import AdminReports from './pages/admin/AdminReports'
 import AdminSettings from './pages/admin/AdminSettings'
 
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="sales" element={<AdminSales />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="customers" element={<AdminCustomers />} />
+        <Route path="users" element={<AdminUsers />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>

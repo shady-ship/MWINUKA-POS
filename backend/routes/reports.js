@@ -72,8 +72,50 @@ router.get('/top-products', async (req, res) => {
 
 router.get('/low-stock', async (req, res) => {
   try {
-    const products = await query('SELECT * FROM products WHERE stock <= 20 ORDER BY stock ASC')
+    const products = await query('SELECT * FROM products WHERE stock <= min_stock ORDER BY stock ASC')
     res.json(products)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/by-date', async (req, res) => {
+  try {
+    const { date } = req.query
+    if (!date) return res.status(400).json({ error: 'date required (YYYY-MM-DD)' })
+
+    const orders = await query(`
+      SELECT o.id, o.order_no, o.customer_id, o.salesman_id, o.total, o.payment_method, o.notes, o.status,
+             DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date, o.created_at,
+             u.name as salesman_name, c.name as customer_name
+      FROM orders o
+      LEFT JOIN users u ON o.salesman_id = u.id
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE o.order_date = ?
+      ORDER BY o.created_at ASC
+    `, [date])
+
+    const orderIds = orders.map(o => o.id)
+    if (orderIds.length > 0) {
+      const placeholders = orderIds.map(() => '?').join(',')
+      const items = await query(`
+        SELECT oi.*, p.name as product_name
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id IN (${placeholders})
+        ORDER BY oi.order_id, oi.id
+      `, orderIds)
+
+      const itemsByOrder = {}
+      items.forEach(item => {
+        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = []
+        itemsByOrder[item.order_id].push(item)
+      })
+      orders.forEach(o => { o.items = itemsByOrder[o.id] || [] })
+    }
+
+    const totalSales = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+    res.json({ date, totalSales, orders })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
