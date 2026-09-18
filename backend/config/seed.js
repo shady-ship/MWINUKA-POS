@@ -115,6 +115,18 @@ const seed = async () => {
     )
   `)
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NULL,
+      username VARCHAR(255),
+      role VARCHAR(50),
+      action VARCHAR(100) NOT NULL,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
   const soldOut = await pool.execute(`SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'price'`)
   const hasOldPrice = soldOut[0][0].count > 0
   if (hasOldPrice) {
@@ -136,7 +148,18 @@ const seed = async () => {
   await ensureColumn(pool, 'products', 'dozens_per_carton', 'INT NULL')
   await ensureColumn(pool, 'users', 'username', 'VARCHAR(100) UNIQUE')
   await ensureColumn(pool, 'users', 'active', 'TINYINT(1) DEFAULT 1')
+  await ensureColumn(pool, 'users', 'admin_modules', 'VARCHAR(500) DEFAULT NULL')
   await ensureColumn(pool, 'order_items', 'price_type', "VARCHAR(50) DEFAULT 'Retail'")
+  await ensureColumn(pool, 'order_items', 'paid', 'TINYINT(1) DEFAULT 0')
+
+  await pool.execute(`
+    UPDATE order_items SET paid = 1
+    WHERE id IN (
+      SELECT oi.id FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE o.status = 'Completed'
+    )
+  `)
 
   await pool.execute("UPDATE products SET name = CONCAT('Product ', id) WHERE name IS NULL OR name = ''")
   await pool.execute('UPDATE products SET stock = 0 WHERE stock IS NULL')

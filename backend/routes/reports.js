@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
+import { logAudit } from '../config/audit.js'
 
 const router = Router()
 
@@ -8,6 +9,7 @@ router.delete('/reset-orders', async (req, res) => {
     await execute('DELETE FROM order_items')
     await execute('DELETE FROM orders')
     await execute('DELETE FROM customers')
+    await logAudit(req, 'settings.reset_sales', 'Reset all orders and customers')
     res.json({ message: 'All orders and customers cleared' })
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -20,6 +22,7 @@ router.delete('/reset-all', async (req, res) => {
     await execute('DELETE FROM orders')
     await execute('DELETE FROM products')
     await execute('DELETE FROM customers')
+    await logAudit(req, 'settings.reset_all', 'Reset all products, orders and customers')
     res.json({ message: 'All data cleared' })
   } catch (err) {
     res.status(500).json({ error: err.message })

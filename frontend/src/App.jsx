@@ -20,6 +20,8 @@ import AdminCustomers from './pages/admin/AdminCustomers'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminReports from './pages/admin/AdminReports'
 import AdminSettings from './pages/admin/AdminSettings'
+import AdminAudit from './pages/admin/AdminAudit'
+import { ADMIN_MODULES, canAccess, modulesOf } from './constants'
 
 function SalesLayout({ children }) {
   return (
@@ -31,10 +33,19 @@ function SalesLayout({ children }) {
   )
 }
 
-function ProtectedRoute({ children, role }) {
+function ProtectedRoute({ children }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" />
-  if (role && user.role !== role) return <Navigate to="/" />
+  return children
+}
+
+function AdminGate({ module, children }) {
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/login" />
+  if (!canAccess(user, module)) {
+    const first = modulesOf(user).find(k => ADMIN_MODULES.some(m => m.key === k))
+    return <Navigate to={first ? `/admin/${first}` : '/'} replace />
+  }
   return children
 }
 
@@ -52,16 +63,17 @@ function AppRoutes() {
       <Route path="/stock" element={<ProtectedRoute><SalesLayout><StockPage /></SalesLayout></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><SalesLayout><ReportsPage /></SalesLayout></ProtectedRoute>} />
 
-      <Route path="/admin" element={<ProtectedRoute role="admin"><AdminLayout /></ProtectedRoute>}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="products" element={<AdminProducts />} />
-        <Route path="stock" element={<AdminStock />} />
-        <Route path="sales" element={<AdminSales />} />
-        <Route path="orders" element={<AdminOrders />} />
-        <Route path="customers" element={<AdminCustomers />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="reports" element={<AdminReports />} />
-        <Route path="settings" element={<AdminSettings />} />
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<AdminGate module="dashboard"><AdminDashboard /></AdminGate>} />
+        <Route path="products" element={<AdminGate module="products"><AdminProducts /></AdminGate>} />
+        <Route path="stock" element={<AdminGate module="stock"><AdminStock /></AdminGate>} />
+        <Route path="sales" element={<AdminGate module="sales"><AdminSales /></AdminGate>} />
+        <Route path="orders" element={<AdminGate module="orders"><AdminOrders /></AdminGate>} />
+        <Route path="customers" element={<AdminGate module="customers"><AdminCustomers /></AdminGate>} />
+        <Route path="users" element={<AdminGate module="users"><AdminUsers /></AdminGate>} />
+        <Route path="reports" element={<AdminGate module="reports"><AdminReports /></AdminGate>} />
+        <Route path="settings" element={<AdminGate module="settings"><AdminSettings /></AdminGate>} />
+        <Route path="audit" element={<AdminGate module="audit"><AdminAudit /></AdminGate>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

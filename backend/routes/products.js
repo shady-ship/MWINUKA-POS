@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
+import { logAudit } from '../config/audit.js'
 
 const router = Router()
 
@@ -126,6 +127,7 @@ router.post('/', async (req, res) => {
 
     if (normPrices.length > 0) await savePrices(result.insertId, normPrices)
     const product = await queryOne('SELECT * FROM products WHERE id = ?', [result.insertId])
+    await logAudit(req, 'product.add', `Added product ${name}`)
     res.status(201).json((await attachPrices([product]))[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -168,6 +170,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const product = await queryOne('SELECT * FROM products WHERE id = ?', [req.params.id])
+    await logAudit(req, 'product.update', `Updated product ${product.name}${active !== undefined ? ` (active: ${active ? 'yes' : 'no'})` : ''}`)
     res.json((await attachPrices([product]))[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -176,7 +179,9 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const product = await queryOne('SELECT id, name FROM products WHERE id = ?', [req.params.id])
     await execute('DELETE FROM products WHERE id = ?', [req.params.id])
+    if (product) await logAudit(req, 'product.delete', `Deleted product ${product.name}`)
     res.json({ message: 'Product deleted' })
   } catch (err) {
     res.status(500).json({ error: err.message })

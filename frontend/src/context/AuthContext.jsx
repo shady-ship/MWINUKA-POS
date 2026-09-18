@@ -24,6 +24,17 @@ export function AuthProvider({ children }) {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+    const original = window.fetch
+    window.fetch = (input, init) => {
+      const headers = new Headers(init?.headers || (input?.headers || {}))
+      headers.set('x-user-id', String(user.id))
+      return original(input, { ...init, headers })
+    }
+    return () => { window.fetch = original }
+  }, [user])
+
   const login = async (usernameOrEmail, password) => {
     try {
       const res = await fetch(`${API}/auth/login`, {
@@ -57,6 +68,7 @@ export function AuthProvider({ children }) {
       name: data.name !== undefined ? data.name : prev.name,
       username: data.username !== undefined ? data.username : prev.username,
       role: data.role !== undefined ? data.role : prev.role,
+      admin_modules: data.admin_modules !== undefined ? data.admin_modules : prev.admin_modules,
     }))
     return data
   }

@@ -4,20 +4,18 @@ export default function ReportsPage() {
   const { products, ordersList } = useApp()
   const totalProducts = products.length
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0)
-  const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
-  const totalOrders = ordersList.length
+  const totalOrders = ordersList.filter(o => o.status !== 'Cancelled').length
 
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h2 className="text-xl font-bold text-heading mb-6">REPORTS</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           {[
             { label: 'Total Products', value: totalProducts, color: 'bg-primary' },
             { label: 'Total Stock', value: totalStock, color: 'bg-accent' },
             { label: 'Total Orders', value: totalOrders, color: 'bg-success' },
-            { label: 'Total Revenue', value: `TSh ${totalRevenue.toLocaleString()}`, color: 'bg-primary-light' },
           ].map((stat, i) => (
             <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-line">
               <p className="text-xs text-muted mb-1">{stat.label}</p>

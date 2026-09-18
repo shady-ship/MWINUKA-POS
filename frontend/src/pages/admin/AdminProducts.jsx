@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Search, Edit, Trash2, X, Power, Copy } from 'lucide-react'
 import { useApp } from '../../context/useApp'
+import { piecesForQty, packPerCarton, formatPackBreakdown, packBreakdown } from '../../constants'
 
 const UNIT_ROWS = ['Piece', 'Dozen', 'Carton']
 
@@ -18,6 +19,7 @@ export default function AdminProducts() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', prices: emptyPrices() })
   const [editId, setEditId] = useState(null)
+  const [stockUnit, setStockUnit] = useState('Piece')
   const [deleteId, setDeleteId] = useState(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -29,6 +31,7 @@ export default function AdminProducts() {
   const openAdd = () => {
     setForm({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', prices: emptyPrices() })
     setEditId(null)
+    setStockUnit('Piece')
     setError('')
     setModal('add')
   }
@@ -56,6 +59,7 @@ export default function AdminProducts() {
       prices: formPrices,
     })
     setEditId(p.id)
+    setStockUnit('Piece')
     setError('')
     setModal('edit')
   }
@@ -79,7 +83,7 @@ export default function AdminProducts() {
     return {
       name: form.name,
       category: form.category || null,
-      stock: Number(form.stock || 0),
+      stock: piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton),
       min_stock: Number(form.min_stock || 20),
       buy_price: Number(form.buyPrice || 0),
       pieces_per_carton: Number(form.piecesPerCarton) || null,
@@ -164,7 +168,9 @@ export default function AdminProducts() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((product, index) => (
+              {filtered.map((product, index) => {
+                const bd = packBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)
+                return (
                 <tr key={product.id} className={`border-b border-line hover:bg-gray-50 transition-colors ${product.active === 0 ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 text-xs text-muted">{index + 1}</td>
                   <td className="px-4 py-3">
@@ -172,7 +178,12 @@ export default function AdminProducts() {
                   </td>
                   <td className="px-4 py-3 text-sm text-heading text-right">TSh {(Number(product.buy_price) || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-xs text-heading whitespace-pre-line">{pricesSummary(product.prices)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-heading text-right">{product.stock}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-heading text-right">
+                    <div>{product.stock} pcs</div>
+                    {packPerCarton(product.pieces_per_carton, product.dozens_per_carton) > 0 && (
+                      <div className="text-[10px] font-normal text-accent">{bd.cartons} crtn · {bd.dozens} dzn · {bd.pieces} pc</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {product.active === 0 ? (
                       <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-danger">Disabled</span>
@@ -193,7 +204,8 @@ export default function AdminProducts() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
               {filtered.length === 0 && (
                 <tr><td colSpan={7} className="py-12 text-center text-muted text-sm">No products yet. Click "ADD PRODUCT" to add one.</td></tr>
               )}
@@ -228,8 +240,22 @@ export default function AdminProducts() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-heading mb-1">Stock *</label>
-                  <input value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} type="number" min="0" placeholder="0"
-                    className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <div className="flex gap-1.5">
+                    <input value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} type="number" min="0" placeholder="0"
+                      className="w-0 flex-1 px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <select value={stockUnit} onChange={e => setStockUnit(e.target.value)}
+                      className="px-2 py-2 rounded-lg border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent bg-white">
+                      <option value="Piece">pc</option>
+                      <option value="Dozen">dzn</option>
+                      <option value="Carton">crtn</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-muted mt-0.5">
+                    = {piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton)} pieces
+                    {packPerCarton(form.piecesPerCarton, form.dozensPerCarton) > 0 && piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton) > 0
+                      ? ` (${formatPackBreakdown(piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton), form.piecesPerCarton, form.dozensPerCarton)})`
+                      : ''}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-heading mb-1">Min Stock *</label>

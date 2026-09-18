@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search, AlertTriangle } from 'lucide-react'
 import { useApp } from '../context/useApp'
+import { packBreakdown } from '../constants'
 
 export default function StockPage() {
   const { products } = useApp()
@@ -54,12 +55,16 @@ export default function StockPage() {
               <tr className="bg-gray-50 border-b border-line">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted">Product</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-muted">Prices (TSh)</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted">Stock</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted">Crtn</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted">Dzn</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted">Pcs</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted">Status</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(product => (
+              {filtered.map(product => {
+                const bd = packBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)
+                return (
                 <tr key={product.id} className="border-b border-line hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -75,7 +80,9 @@ export default function StockPage() {
                       return `${x.unit} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-heading text-right">{product.stock}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.perCarton > 0 ? bd.cartons : '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.dozens}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.pieces}</td>
                   <td className="px-4 py-3 text-center">
                     {product.stock === 0 ? (
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-danger">
@@ -92,7 +99,8 @@ export default function StockPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

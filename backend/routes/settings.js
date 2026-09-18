@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { query, execute } from '../config/db.js'
+import { logAudit } from '../config/audit.js'
 
 const router = Router()
 
@@ -32,14 +33,17 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const allowed = new Set(Object.keys(DEFAULT_SETTINGS))
+    const changed = []
     for (const [key, value] of Object.entries(req.body || {})) {
       if (!allowed.has(key)) continue
       const v = String(value ?? '').trim()
+      changed.push(key)
       await execute(
         'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
         [key, v]
       )
     }
+    await logAudit(req, 'settings.update', `Updated business settings: ${changed.join(', ') || 'none'}`)
     res.json(await getSettings())
   } catch (err) {
     res.status(500).json({ error: err.message })

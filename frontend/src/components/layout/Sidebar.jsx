@@ -1,21 +1,24 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart,
   ClipboardList, Users, UserPlus, BarChart3, Settings, LogOut,
-  Store, ShoppingBag, FileText, Boxes
+  Store, ShoppingBag, FileText, Boxes, History
 } from 'lucide-react'
 import { useApp } from '../../context/useApp'
+import { useAuth } from '../../context/AuthContext'
+import { canAccess } from '../../constants'
 
 const links = [
-  { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, end: true },
-  { label: 'Products', to: '/admin/products', icon: Package },
-  { label: 'Stock', to: '/admin/stock', icon: Warehouse },
-  { label: 'Sales', to: '/admin/sales', icon: ShoppingCart },
-  { label: 'Orders', to: '/admin/orders', icon: ClipboardList },
-  { label: 'Customers', to: '/admin/customers', icon: Users },
-  { label: 'Staff', to: '/admin/users', icon: UserPlus },
-  { label: 'Reports', to: '/admin/reports', icon: BarChart3 },
-  { label: 'Settings', to: '/admin/settings', icon: Settings },
+  { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, module: 'dashboard', end: true },
+  { label: 'Products', to: '/admin/products', icon: Package, module: 'products' },
+  { label: 'Stock', to: '/admin/stock', icon: Warehouse, module: 'stock' },
+  { label: 'Sales', to: '/admin/sales', icon: ShoppingCart, module: 'sales' },
+  { label: 'Orders', to: '/admin/orders', icon: ClipboardList, module: 'orders' },
+  { label: 'Customers', to: '/admin/customers', icon: Users, module: 'customers' },
+  { label: 'Staff', to: '/admin/users', icon: UserPlus, module: 'users' },
+  { label: 'Reports', to: '/admin/reports', icon: BarChart3, module: 'reports' },
+  { label: 'Audit Log', to: '/admin/audit', icon: History, module: 'audit' },
+  { label: 'Settings', to: '/admin/settings', icon: Settings, module: 'settings' },
 ]
 
 const staffLinks = [
@@ -49,8 +52,17 @@ function renderLink({ label, to, icon: Icon, end }) {
 
 export default function Sidebar() {
   const { settings } = useApp()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const isAdmin = user?.role === 'admin'
+  const visibleLinks = links.filter(l => canAccess(user, l.module))
   const name = settings.business_name || 'Mwinuka Enterprises Co Ltd'
   const shortName = name.length > 14 ? name.split(' ').slice(0, 2).join(' ') : name
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
   return (
     <aside className="w-60 bg-sidebar min-h-screen text-white flex flex-col">
       <div className="p-4 border-b border-white/10">
@@ -66,16 +78,20 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {links.map(renderLink)}
+        {visibleLinks.map(renderLink)}
 
-        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold text-blue-300/60 uppercase tracking-wider">
-          Sales Staff Modules
-        </p>
-        {staffLinks.map(renderLink)}
+        {isAdmin && (
+          <>
+            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold text-blue-300/60 uppercase tracking-wider">
+              Sales Staff Modules
+            </p>
+            {staffLinks.map(renderLink)}
+          </>
+        )}
       </nav>
 
       <div className="p-3 border-t border-white/10">
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-blue-200 hover:bg-white/10 w-full transition-colors">
+        <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-blue-200 hover:bg-white/10 w-full transition-colors">
           <LogOut className="w-4 h-4" />
           Logout
         </button>

@@ -8,7 +8,7 @@ export default function HomePage() {
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0)
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const todaySales = ordersList.filter(o => (o.order_date || '').slice(0, 10) === today).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+  const todayOrders = ordersList.filter(o => (o.order_date || '').slice(0, 10) === today).length
   const topProducts = products.slice(0, 4)
 
   const quickActions = [
@@ -38,8 +38,9 @@ export default function HomePage() {
               <p className="text-xs text-blue-200">Available Stock Items</p>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <p className="text-2xl font-bold">TSh {todaySales.toLocaleString()}</p>
-              <p className="text-xs text-blue-200">Today's Sales</p>
+              <ClipboardList className="w-6 h-6 mx-auto mb-2 text-blue-200" />
+              <p className="text-2xl font-bold">{todayOrders}</p>
+              <p className="text-xs text-blue-200">Today's Orders</p>
             </div>
           </div>
         </div>

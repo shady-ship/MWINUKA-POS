@@ -25,6 +25,7 @@ export function AppProvider({ children }) {
   const [customersList, setCustomersList] = useState([])
   const [usersList, setUsersList] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [auditLogs, setAuditLogs] = useState([])
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -93,6 +94,22 @@ export function AppProvider({ children }) {
       throw err
     }
   }
+
+  const fetchAudit = useCallback(async (filters = {}) => {
+    try {
+      const params = new URLSearchParams()
+      if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
+      if (filters.dateTo) params.set('dateTo', filters.dateTo)
+      if (filters.userId) params.set('userId', filters.userId)
+      if (filters.search) params.set('search', filters.search)
+      const qs = params.toString()
+      const res = await fetch(`${API}/audit${qs ? `?${qs}` : ''}`)
+      const data = await res.json()
+      if (Array.isArray(data)) setAuditLogs(data)
+    } catch (err) {
+      console.error('Failed to fetch audit:', err)
+    }
+  }, [])
 
   useEffect(() => {
     fetchProducts()
@@ -360,16 +377,35 @@ export function AppProvider({ children }) {
     }
   }
 
-  const updateOrderStatus = async (orderId, status) => {
+const updateOrderStatus = async (orderId, status) => {
     try {
-      await fetch(`${API}/orders/${orderId}/status`, {
+      const res = await fetch(`${API}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
+      if (!res.ok) { console.error('Status update failed:', res.status); return false }
       await fetchOrders()
+      return true
     } catch (err) {
       console.error('Failed to update order:', err)
+      return false
+    }
+  }
+
+  const markItemsPaid = async (orderId, itemIds) => {
+    try {
+      const res = await fetch(`${API}/orders/${orderId}/pay-items`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: itemIds }),
+      })
+      if (!res.ok) { console.error('Pay-items failed:', res.status); return false }
+      await fetchOrders()
+      return true
+    } catch (err) {
+      console.error('Failed to mark items paid:', err)
+      return false
     }
   }
 
@@ -443,14 +479,22 @@ export function AppProvider({ children }) {
 
   const updateUser = async (id, data) => {
     try {
-      await fetch(`${API}/auth/users/${id}`, {
+      const res = await fetch(`${API}/auth/users/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
+      const resData = await res.json().catch(() => null)
+      if (!res.ok) {
+        const err = new Error(resData?.error || 'Failed to update user')
+        err.status = res.status
+        throw err
+      }
       await fetchUsers()
+      return resData
     } catch (err) {
       console.error('Failed to update user:', err)
+      throw err
     }
   }
 
@@ -469,10 +513,11 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       products, addProduct, updateProduct, deleteProduct, toggleProductActive,
       cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, removeFromCart, clearCart, cartTotal,
-      placeOrder, ordersList, updateOrderStatus, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
+      placeOrder, ordersList, updateOrderStatus, markItemsPaid, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
       customersList, addCustomer, updateCustomer, deleteCustomer, fetchCustomers,
       usersList, addUser, updateUser, deleteUser, fetchUsers,
       settings, updateSettings, fetchSettings,
+      auditLogs, fetchAudit,
       getUnitPrice, getAvailableTypes,
     }}>
       {children}

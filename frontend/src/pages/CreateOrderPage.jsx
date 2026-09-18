@@ -4,6 +4,7 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, Package } from 'luc
 import { useApp } from '../context/useApp'
 import { useAuth } from '../context/AuthContext'
 import InvoicePrint from '../components/InvoicePrint'
+import { piecesForQty, packPerCarton, formatPackBreakdown } from '../constants'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
@@ -31,22 +32,23 @@ export default function CreateOrderPage() {
     p.active !== 0 && p.name.toLowerCase().includes(search.toLowerCase())
   )
 
-  const checkOptionalPrice = (lineId, item, newPrice) => {
-    const buyPrice = Number(item.buy_price) || 0
-    const val = Number(newPrice) || 0
-    if (val > 0 && buyPrice > 0 && val <= buyPrice) {
-      setOptionalWarnings(prev => ({ ...prev, [lineId]: `Must be > TSh ${buyPrice.toLocaleString()} (buy price)` }))
-    } else {
-      setOptionalWarnings(prev => { const next = { ...prev }; delete next[lineId]; return next })
-    }
+  const checkOptionalPrice = (lineId) => {
+    setOptionalWarnings(prev => { const next = { ...prev }; delete next[lineId]; return next })
   }
 
   const handlePlaceOrder = async () => {
     if (!customerName.trim()) return alert('Please enter customer name')
     if (cart.length === 0) return alert('Please add items to the order')
+    const neededByProduct = {}
     for (const item of cart) {
-      if (item.selectedPriceType === 'Optional' && Number(item.buy_price) > 0 && Number(item.selectedPrice) <= Number(item.buy_price)) {
-        return alert(`Optional price for ${item.name} must be greater than the buy price (TSh ${Number(item.buy_price).toLocaleString()})`)
+      const pieces = piecesForQty(item.quantity, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton)
+      neededByProduct[item.product_id] = (neededByProduct[item.product_id] || 0) + pieces
+    }
+    for (const [pid, needed] of Object.entries(neededByProduct)) {
+      const prod = products.find(p => p.id === Number(pid))
+      const stock = prod ? Number(prod.stock) || 0 : 0
+      if (needed > stock) {
+        return alert(`Not enough stock for ${prod?.name || 'this product'}: need ${needed} pcs but only ${stock} pcs available (${formatPackBreakdown(stock, prod?.pieces_per_carton, prod?.dozens_per_carton)})`)
       }
     }
     const salesman = usersList.find(u => Number(u.id) === Number(salesmanId))
@@ -67,7 +69,7 @@ export default function CreateOrderPage() {
       order_date: result?.order_date || new Date().toISOString().split('T')[0],
       total: result?.total || cartTotal,
       payment_method: paymentMethod,
-      status: 'Completed',
+      status: 'Pending',
     })
     setPlacedItems(itemsForPrint)
     setOrderPlaced(true)
@@ -158,7 +160,10 @@ export default function CreateOrderPage() {
                             return `${x.unit}: ${parts.join(' | ')}`
                           }).join(' • ')}
                         </p>
-                        <p className="text-[10px] text-muted">{product.stock} in stock</p>
+                        <p className="text-[10px] text-muted">
+                          {product.stock} pcs in stock
+                          {packPerCarton(product.pieces_per_carton, product.dozens_per_carton) > 0 && product.stock > 0 ? ` · ${formatPackBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)}` : ''}
+                        </p>
                       </div>
                     </button>
                   ))}
@@ -206,7 +211,6 @@ export default function CreateOrderPage() {
                           <td className="px-3 py-3 text-xs text-muted">{index + 1}</td>
                           <td className="px-3 py-3">
                             <p className="text-sm font-semibold text-heading">{item.name}</p>
-                            {item.buy_price > 0 && <p className="text-[10px] text-muted">Buy: TSh {Number(item.buy_price).toLocaleString()}</p>}
                             {hasSplit && <p className="text-[10px] text-accent font-medium">{ppc > 0 ? `${ppc} pcs/carton` : `${dpc} dzs/carton`}</p>}
                           </td>
                           <td className="px-3 py-3 text-center">
@@ -224,8 +228,8 @@ export default function CreateOrderPage() {
                           <td className="px-3 py-3 text-right">
                             {isOptional ? (
                               <div className="flex flex-col items-end">
-                                <input type="number" min={Number(item.buy_price) + 1 || 1} value={item.manualOverride ?? ''} placeholder={(item.prices?.find(p => p.unit === item.selectedUnit)?.optional_price ?? 0).toLocaleString()}
-                                  onChange={e => { updateCartPrice(item.lineId, e.target.value); checkOptionalPrice(item.lineId, item, e.target.value) }}
+                                <input type="number" min="0" value={item.manualOverride ?? ''} placeholder={(item.prices?.find(p => p.unit === item.selectedUnit)?.optional_price ?? 0).toLocaleString()}
+                                  onChange={e => { updateCartPrice(item.lineId, e.target.value); checkOptionalPrice(item.lineId) }}
                                   className="w-28 px-2 py-1 rounded border border-red-200 text-xs text-right focus:outline-none focus:ring-2 focus:ring-accent" />
                                 {optionalWarnings[item.lineId] && <span className="text-[9px] text-danger mt-0.5">{optionalWarnings[item.lineId]}</span>}
                               </div>

@@ -2,16 +2,20 @@ import { Search, User, ShoppingCart, LogOut } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../../context/useApp'
 import { useAuth } from '../../context/AuthContext'
+import { ADMIN_MODULES, canAccess, modulesOf } from '../../constants'
 
 export default function Navbar({ showNav = true }) {
   const { cart } = useApp()
   const { user, logout } = useAuth()
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const grantedKeys = modulesOf(user)
+  const firstGranted = grantedKeys.find(k => ADMIN_MODULES.some(m => m.key === k))
+  const homeTo = user?.role === 'admin' ? '/admin' : firstGranted ? `/admin/${firstGranted}` : '/'
 
   return (
     <header className="bg-primary text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to={user?.role === 'admin' ? '/admin' : '/'} className="flex items-center gap-2">
+        <Link to={homeTo} className="flex items-center gap-2">
           <div className="bg-white rounded-lg p-1.5">
             <ShoppingCart className="w-5 h-5 text-primary" />
           </div>
@@ -58,7 +62,7 @@ export default function Navbar({ showNav = true }) {
         <nav className="bg-primary-dark">
           <div className="max-w-7xl mx-auto px-4 flex gap-1">
             {[
-              ...(user?.role === 'admin' ? [{ label: 'ADMIN PANEL', to: '/admin' }] : []),
+              ...(canAccess(user, 'dashboard') || firstGranted ? [{ label: 'ADMIN PANEL', to: homeTo }] : []),
               { label: 'HOME', to: '/' },
               { label: 'PRODUCTS', to: '/products' },
               { label: 'ORDERS', to: '/orders' },

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Plus } from 'lucide-react'
 import { useApp } from '../context/useApp'
+import { packPerCarton, formatPackBreakdown } from '../constants'
 
 export default function ProductsPage() {
   const { products, addToCart, cart } = useApp()
@@ -60,8 +61,11 @@ export default function ProductsPage() {
                 <p className="text-[9px] text-accent font-semibold mt-1">{product.pieces_per_carton > 0 ? `${product.pieces_per_carton} pcs/carton` : `${product.dozens_per_carton} dzs/carton`} · pack split available</p>
               )}
               <p className={`text-xs mt-2 ${product.stock > (product.min_stock || 20) ? 'text-success' : product.stock > 0 ? 'text-danger font-bold' : 'text-danger'}`}>
-                {product.stock > (product.min_stock || 20) ? `In Stock (${product.stock})` : product.stock > 0 ? `Low Stock (${product.stock})` : 'Out of Stock'}
+                {product.stock > (product.min_stock || 20) ? 'In Stock' : product.stock > 0 ? 'Low Stock' : 'Out of Stock'} · {product.stock} pcs
               </p>
+              {packPerCarton(product.pieces_per_carton, product.dozens_per_carton) > 0 && product.stock > 0 && (
+                <p className="text-[10px] text-muted">{formatPackBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)}</p>
+              )}
               {getCartQty(product.id) > 0 ? (
                 <div className="mt-3 flex items-center justify-center gap-2 bg-accent/10 rounded-lg py-1.5">
                   <span className="text-xs font-semibold text-accent">In Cart: {getCartQty(product.id)}</span>
