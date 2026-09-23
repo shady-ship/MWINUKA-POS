@@ -4,7 +4,7 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, Package } from 'luc
 import { useApp } from '../context/useApp'
 import { useAuth } from '../context/AuthContext'
 import InvoicePrint from '../components/InvoicePrint'
-import { piecesForQty, packPerCarton, formatPackBreakdown } from '../constants'
+import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts } from '../constants'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
@@ -41,14 +41,14 @@ export default function CreateOrderPage() {
     if (cart.length === 0) return alert('Please add items to the order')
     const neededByProduct = {}
     for (const item of cart) {
-      const pieces = piecesForQty(item.quantity, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton)
+      const pieces = piecesForQty(item.quantity, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton, item.pieces_per_dozen)
       neededByProduct[item.product_id] = (neededByProduct[item.product_id] || 0) + pieces
     }
     for (const [pid, needed] of Object.entries(neededByProduct)) {
       const prod = products.find(p => p.id === Number(pid))
       const stock = prod ? Number(prod.stock) || 0 : 0
       if (needed > stock) {
-        return alert(`Not enough stock for ${prod?.name || 'this product'}: need ${needed} pcs but only ${stock} pcs available (${formatPackBreakdown(stock, prod?.pieces_per_carton, prod?.dozens_per_carton)})`)
+        return alert(`Not enough stock for ${prod?.name || 'this product'}: need ${needed} pcs but only ${stock} pcs available (${formatPackBreakdown(stock, prod?.pieces_per_carton, prod?.dozens_per_carton, prod?.pieces_per_dozen)})`)
       }
     }
     const salesman = usersList.find(u => Number(u.id) === Number(salesmanId))
@@ -161,8 +161,7 @@ export default function CreateOrderPage() {
                           }).join(' • ')}
                         </p>
                         <p className="text-[10px] text-muted">
-                          {product.stock} pcs in stock
-                          {packPerCarton(product.pieces_per_carton, product.dozens_per_carton) > 0 && product.stock > 0 ? ` · ${formatPackBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)}` : ''}
+                          {`In stock: ${stockParts(product).join(' · ') || `${product.stock} pcs`}`}
                         </p>
                       </div>
                     </button>

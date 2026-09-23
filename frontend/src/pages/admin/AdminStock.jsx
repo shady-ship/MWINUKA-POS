@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, AlertTriangle, Package, Edit, X, Plus, Trash2 } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import { formatPackBreakdown, packPerCarton, piecesForQty, packBreakdown } from '../../constants'
+import { formatPackBreakdown, packPerCarton, piecesForQty, stockPack } from '../../constants'
 
 export default function AdminStock() {
   const { products, updateProduct, deleteProduct } = useApp()
@@ -32,7 +32,7 @@ export default function AdminStock() {
   const openAdjust = (p) => { setEditItem(p); setAdjQty(''); setAdjType('add'); setAdjUnit('Piece'); setEditMinStock(p.min_stock || '') }
 
   const saveAdjust = () => {
-    const pieces = piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton)
+    const pieces = piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)
     const newStock = adjType === 'add' ? (Number(editItem.stock) || 0) + pieces : Math.max(0, (Number(editItem.stock) || 0) - pieces)
     updateProduct(editItem.id, { stock: newStock, min_stock: Number(editMinStock || 20) })
     setEditItem(null)
@@ -97,7 +97,7 @@ export default function AdminStock() {
             {filtered.map((product, index) => {
               const min = product.min_stock || 20
               const low = product.stock <= min
-              const bd = packBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)
+              const bd = stockPack(product)
               return (
                 <tr key={product.id} className={`border-b border-line hover:bg-gray-50 transition-colors ${low || product.stock === 0 ? 'bg-red-50/50' : ''}`}>
                   <td className="px-4 py-3 text-xs text-muted">{index + 1}</td>
@@ -113,9 +113,9 @@ export default function AdminStock() {
                       return `${x.unit} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.perCarton > 0 ? bd.cartons : '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.dozens}</td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.pieces}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasCarton ? bd.cartons : '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasDozen ? bd.dozens : '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasPiece ? bd.pieces : '—'}</td>
                   <td className="px-4 py-3 text-sm text-muted text-right">{min}</td>
                   <td className="px-4 py-3 text-center">
                     {product.stock === 0 ? (
@@ -167,15 +167,15 @@ export default function AdminStock() {
                 <select value={adjUnit} onChange={e => setAdjUnit(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                   <option value="Piece">Piece</option>
-                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton) >= 12 && <option value="Dozen">Dozen (12 pcs)</option>}
-                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton) > 0 && <option value="Carton">Carton ({formatPackBreakdown(packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton), editItem.pieces_per_carton, editItem.dozens_per_carton)})</option>}
+                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) >= 12 && <option value="Dozen">Dozen ({Number(editItem.pieces_per_dozen) || 12} pcs)</option>}
+                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) > 0 && <option value="Carton">Carton ({formatPackBreakdown(packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen), editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)})</option>}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-heading mb-1">Quantity ({adjUnit === 'Carton' ? 'cartons' : adjUnit === 'Dozen' ? 'dozens' : 'pieces'})*</label>
                 <input value={adjQty} onChange={e => setAdjQty(e.target.value)} type="number" min="1" placeholder="Enter quantity"
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-                {adjQty > 0 && <p className="text-[10px] text-muted mt-0.5">= {piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton)} pieces</p>}
+                {adjQty > 0 && <p className="text-[10px] text-muted mt-0.5">= {piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)} pieces</p>}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-heading mb-1">Minimum Stock Alert Level</label>
@@ -183,8 +183,8 @@ export default function AdminStock() {
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
               </div>
               <div className="p-3 bg-gray-50 rounded-lg text-xs">
-                <p className="text-muted">Current: <span className="font-bold text-heading">{editItem.stock} pcs</span> {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton) > 0 ? `(${formatPackBreakdown(editItem.stock, editItem.pieces_per_carton, editItem.dozens_per_carton)})` : ''}</p>
-                <p className="text-muted mt-1">New: <span className="font-bold text-accent">{adjType === 'add' ? (Number(editItem.stock) || 0) + piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton) : Math.max(0, (Number(editItem.stock) || 0) - piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton))} pcs</span> {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton) > 0 ? `(${formatPackBreakdown(adjType === 'add' ? (Number(editItem.stock) || 0) + piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton) : Math.max(0, (Number(editItem.stock) || 0) - piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton)), editItem.pieces_per_carton, editItem.dozens_per_carton)})` : ''}</p>
+                <p className="text-muted">Current: <span className="font-bold text-heading">{editItem.stock} pcs</span> {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) > 0 ? `(${formatPackBreakdown(editItem.stock, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)})` : ''}</p>
+                <p className="text-muted mt-1">New: <span className="font-bold text-accent">{(() => { const p = piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen); return adjType === 'add' ? (Number(editItem.stock) || 0) + p : Math.max(0, (Number(editItem.stock) || 0) - p) })()} pcs</span> {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) > 0 ? `(${formatPackBreakdown((() => { const p = piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen); return adjType === 'add' ? (Number(editItem.stock) || 0) + p : Math.max(0, (Number(editItem.stock) || 0) - p) })(), editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)})` : ''}</p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Search, Edit, Trash2, X, Power, Copy } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import { piecesForQty, packPerCarton, formatPackBreakdown, packBreakdown } from '../../constants'
+import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts } from '../../constants'
 
 const UNIT_ROWS = ['Piece', 'Dozen', 'Carton']
 
@@ -17,7 +17,7 @@ export default function AdminProducts() {
   const { products, addProduct, updateProduct, deleteProduct, toggleProductActive } = useApp()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
-  const [form, setForm] = useState({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', prices: emptyPrices() })
+  const [form, setForm] = useState({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', piecesPerDozen: '12', prices: emptyPrices() })
   const [editId, setEditId] = useState(null)
   const [stockUnit, setStockUnit] = useState('Piece')
   const [deleteId, setDeleteId] = useState(null)
@@ -29,7 +29,7 @@ export default function AdminProducts() {
   )
 
   const openAdd = () => {
-    setForm({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', prices: emptyPrices() })
+    setForm({ name: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', piecesPerDozen: '12', prices: emptyPrices() })
     setEditId(null)
     setStockUnit('Piece')
     setError('')
@@ -39,7 +39,7 @@ export default function AdminProducts() {
   const openEdit = (p) => {
     const formPrices = emptyPrices().map(f => {
       const found = (p.prices || []).find(x => x.unit === f.unit)
-      if (!found) return f
+      if (!found) return { ...f, enabled: false }
       return {
         enabled: true,
         unit: found.unit,
@@ -56,6 +56,7 @@ export default function AdminProducts() {
       buyPrice: String(p.buy_price ?? 0),
       piecesPerCarton: String(p.pieces_per_carton ?? ''),
       dozensPerCarton: String(p.dozens_per_carton ?? ''),
+      piecesPerDozen: String(p.pieces_per_dozen ?? '12'),
       prices: formPrices,
     })
     setEditId(p.id)
@@ -83,11 +84,12 @@ export default function AdminProducts() {
     return {
       name: form.name,
       category: form.category || null,
-      stock: piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton),
+      stock: piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen),
       min_stock: Number(form.min_stock || 20),
       buy_price: Number(form.buyPrice || 0),
       pieces_per_carton: Number(form.piecesPerCarton) || null,
       dozens_per_carton: Number(form.dozensPerCarton) || null,
+      pieces_per_dozen: Number(form.piecesPerDozen) > 0 ? Number(form.piecesPerDozen) : 12,
       prices,
     }
   }
@@ -123,6 +125,7 @@ export default function AdminProducts() {
       buy_price: Number(p.buy_price) || 0,
       pieces_per_carton: p.pieces_per_carton || null,
       dozens_per_carton: p.dozens_per_carton || null,
+      pieces_per_dozen: p.pieces_per_dozen || 12,
       prices: (p.prices || []).map(x => ({ unit: x.unit, retail_price: x.retail_price, wholesale_price: x.wholesale_price, optional_price: x.optional_price })),
     })
   }
@@ -169,7 +172,6 @@ export default function AdminProducts() {
             </thead>
             <tbody>
               {filtered.map((product, index) => {
-                const bd = packBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)
                 return (
                 <tr key={product.id} className={`border-b border-line hover:bg-gray-50 transition-colors ${product.active === 0 ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 text-xs text-muted">{index + 1}</td>
@@ -179,10 +181,7 @@ export default function AdminProducts() {
                   <td className="px-4 py-3 text-sm text-heading text-right">TSh {(Number(product.buy_price) || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-xs text-heading whitespace-pre-line">{pricesSummary(product.prices)}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-heading text-right">
-                    <div>{product.stock} pcs</div>
-                    {packPerCarton(product.pieces_per_carton, product.dozens_per_carton) > 0 && (
-                      <div className="text-[10px] font-normal text-accent">{bd.cartons} crtn · {bd.dozens} dzn · {bd.pieces} pc</div>
-                    )}
+                    <div className="text-sm text-heading">{stockParts(product).join(' · ') || `${product.stock} pcs`}</div>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {product.active === 0 ? (
@@ -251,9 +250,9 @@ export default function AdminProducts() {
                     </select>
                   </div>
                   <p className="text-[10px] text-muted mt-0.5">
-                    = {piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton)} pieces
-                    {packPerCarton(form.piecesPerCarton, form.dozensPerCarton) > 0 && piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton) > 0
-                      ? ` (${formatPackBreakdown(piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton), form.piecesPerCarton, form.dozensPerCarton)})`
+                    = {piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)} pieces
+                    {packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0 && piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0
+                      ? ` (${formatPackBreakdown(piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen), form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)})`
                       : ''}
                   </p>
                 </div>
@@ -272,7 +271,7 @@ export default function AdminProducts() {
               <div>
                 <p className="text-xs font-bold text-heading mb-2">PACK SIZE (Optional)</p>
                 <p className="text-[10px] text-muted mb-2">How the product is sealed. Enables the pack-split button on the order screen.</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-heading mb-1">Pieces per Carton</label>
                     <input value={form.piecesPerCarton} onChange={e => setForm({ ...form, piecesPerCarton: e.target.value })} type="number" min="0" placeholder="e.g. 24"
@@ -283,7 +282,13 @@ export default function AdminProducts() {
                     <label className="block text-xs font-semibold text-heading mb-1">Dozens per Carton</label>
                     <input value={form.dozensPerCarton} onChange={e => setForm({ ...form, dozensPerCarton: e.target.value })} type="number" min="0" placeholder="e.g. 12"
                       className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-                    <p className="text-[10px] text-muted mt-0.5">If sealed as, e.g. 12 dozens in a carton</p>
+                    <p className="text-[10px] text-muted mt-0.5">How many dozens are in one carton</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-heading mb-1">Pieces per Dozen</label>
+                    <input value={form.piecesPerDozen} onChange={e => setForm({ ...form, piecesPerDozen: e.target.value })} type="number" min="0" placeholder="e.g. 12"
+                      className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <p className="text-[10px] text-muted mt-0.5">How many pieces are in one dozen (default 12)</p>
                   </div>
                 </div>
               </div>
@@ -293,36 +298,44 @@ export default function AdminProducts() {
                 <p className="text-[10px] text-muted mb-3">Optional price must be greater than the Buy Price.</p>
                 <div className="space-y-2">
                   {form.prices.map((row, idx) => (
-                    <div key={row.unit} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 flex-wrap">
-                      <label className="flex items-center gap-1 w-16">
+                    <div
+                      key={row.unit}
+                      onClick={() => setPrice(idx, 'enabled', !row.enabled)}
+                      className={`flex items-center gap-2 rounded-lg p-2 flex-wrap cursor-pointer transition-colors ${row.enabled ? 'bg-gray-50 border border-line' : 'bg-gray-100 border border-dashed border-line opacity-60'}`}
+                    >
+                      <label className="flex items-center gap-2 w-32 cursor-pointer" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={row.enabled} onChange={e => setPrice(idx, 'enabled', e.target.checked)} className="accent-primary" />
-                        <span className="text-xs font-semibold text-heading">{row.unit}</span>
+                        <span className={`text-xs font-semibold ${row.enabled ? 'text-heading' : 'text-muted line-through'}`}>{row.unit}</span>
+                        {!row.enabled && <span className="text-[9px] font-bold text-muted bg-white px-1.5 py-0.5 rounded-full border border-line">OFF</span>}
                       </label>
                       {row.enabled ? (
-                        <>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div className="flex items-center gap-1">
                             <label className="text-[10px] font-bold text-success">R</label>
                             <input value={row.retail} onChange={e => setPrice(idx, 'retail', e.target.value)} type="number" min="0" placeholder="Retail"
-                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent" />
+                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent"
+                              onClick={e => e.stopPropagation()} />
                           </div>
                           <div className="flex items-center gap-1">
                             <label className="text-[10px] font-bold text-warning">W</label>
                             <input value={row.wholesale} onChange={e => setPrice(idx, 'wholesale', e.target.value)} type="number" min="0" placeholder="Wholesale"
-                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent" />
+                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent"
+                              onClick={e => e.stopPropagation()} />
                           </div>
                           <div className="flex items-center gap-1">
                             <label className="text-[10px] font-bold text-danger">O</label>
                             <input value={row.optional} onChange={e => setPrice(idx, 'optional', e.target.value)} type="number" min="0" placeholder="Optional"
-                              className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${Number(row.optional) > 0 && Number(form.buyPrice) > 0 && Number(row.optional) <= Number(form.buyPrice) ? 'border-red-400 bg-red-50' : 'border-line'}`} />
+                              className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${Number(row.optional) > 0 && Number(form.buyPrice) > 0 && Number(row.optional) <= Number(form.buyPrice) ? 'border-red-400 bg-red-50' : 'border-line'}`}
+                              onClick={e => e.stopPropagation()} />
                           </div>
                           <span className="text-[10px] text-muted">
                             {Number(row.optional) > 0 && Number(form.buyPrice) > 0 && Number(row.optional) <= Number(form.buyPrice) && (
                               <span className="text-danger font-bold">Optional must be {'>'} buy price!</span>
                             )}
                           </span>
-                        </>
+                        </div>
                       ) : (
-                        <span className="text-[10px] text-muted">disabled</span>
+                        <span className="text-[10px] text-muted">Click to enable this unit</span>
                       )}
                     </div>
                   ))}

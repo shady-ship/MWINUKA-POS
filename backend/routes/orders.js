@@ -7,12 +7,13 @@ const router = Router()
 async function piecesFor(productId, qty, unit) {
   const q = Number(qty) || 0
   if (!q) return 0
-  if (unit === 'Dozen') return q * 12
+  const p = await queryOne('SELECT pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id = ?', [productId])
+  const ppc = Number(p?.pieces_per_carton) || 0
+  const dpc = Number(p?.dozens_per_carton) || 0
+  const ppd = Number(p?.pieces_per_dozen) || 12
+  if (unit === 'Dozen') return q * ppd
   if (unit === 'Carton') {
-    const p = await queryOne('SELECT pieces_per_carton, dozens_per_carton FROM products WHERE id = ?', [productId])
-    const ppc = Number(p?.pieces_per_carton) || 0
-    const dpc = Number(p?.dozens_per_carton) || 0
-    const perCarton = ppc > 0 ? ppc : dpc > 0 ? dpc * 12 : 0
+    const perCarton = ppc > 0 ? ppc : dpc > 0 ? dpc * ppd : 0
     return perCarton > 0 ? q * perCarton : q
   }
   return q
@@ -140,6 +141,109 @@ router.post('/', async (req, res) => {
     const order = await queryOne('SELECT id, order_no, customer_id, salesman_id, total, payment_method, notes, status, DATE_FORMAT(order_date, "%Y-%m-%d") as order_date FROM orders WHERE id = ?', [orderId])
     await logAudit(req, 'order.create', `Order ${orderNo} billed for ${customer_name} (TSh ${total}) — awaiting payment`)
     res.status(201).json(order)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.put('/:id', async (req, res) => {
+  try {
+    const { customer_name, payment_method, notes, order_date } = req.body
+    const order = await queryOne('SELECT order_no FROM orders WHERE id = ?', [req.params.id])
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+
+    const updates = []
+    const params = []
+    if (customer_name !== undefined) {
+      let cust = await queryOne('SELECT id FROM customers WHERE name = ?', [customer_name])
+      if (!cust) {
+        const r = await execute('INSERT INTO customers (name) VALUES (?)', [customer_name])
+        cust = { id: r.insertId }
+      }
+      updates.push('customer_id=?')
+      params.push(cust.id)
+    }
+    if (payment_method !== undefined) { updates.push('payment_method=?'); params.push(payment_method) }
+    if (notes !== undefined) { updates.push('notes=?'); params.push(notes || null) }
+    if (order_date !== undefined) { updates.push('order_date=?'); params.push(order_date) }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' })
+    params.push(req.params.id)
+    await execute(`UPDATE orders SET ${updates.join(', ')} WHERE id=?`, params)
+    await logAudit(req, 'order.update', `Order ${order.order_no} details updated`)
+    const updated = await queryOne(`${singleOrderSelect} WHERE o.id = ?`, [req.params.id])
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.put('/:id/items', async (req, res) => {
+  try {
+    const orderId = req.params.id
+    const { items } = req.body
+    const order = await queryOne('SELECT order_no, status FROM orders WHERE id = ?', [orderId])
+    if (!order) return res.status(404).json({ error: 'Order not found' })
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Order must contain at least one item' })
+
+    const oldItems = await query('SELECT product_id, quantity, unit FROM order_items WHERE order_id = ?', [orderId])
+
+    const oldByProduct = {}
+    for (const it of oldItems) {
+      const pieces = await piecesFor(it.product_id, it.quantity, it.unit || 'Piece')
+      oldByProduct[it.product_id] = (oldByProduct[it.product_id] || 0) + pieces
+    }
+
+    const newByProduct = {}
+    let total = 0
+    for (const item of items) {
+      const pid = Number(item.product_id)
+      const qty = Number(item.quantity) || 0
+      if (!pid || qty < 1) return res.status(400).json({ error: 'Each item needs a product and a quantity of at least 1' })
+      const unit = item.unit || 'Piece'
+      const pieces = await piecesFor(pid, qty, unit)
+      newByProduct[pid] = (newByProduct[pid] || 0) + pieces
+      total += (Number(item.price) || 0) * qty
+    }
+
+    const allProductIds = [...new Set([...Object.keys(oldByProduct), ...Object.keys(newByProduct)])]
+    const allProducts = await query(`SELECT id, stock FROM products WHERE id IN (${allProductIds.join(',') || '0'})`)
+
+    for (const pid of Object.keys(newByProduct)) {
+      const prod = allProducts.find(p => p.id === Number(pid))
+      const curStock = Number(prod?.stock) || 0
+      const oldPieces = oldByProduct[pid] || 0
+      if (curStock + oldPieces - newByProduct[pid] < 0) {
+        const p = await queryOne('SELECT name FROM products WHERE id = ?', [pid])
+        return res.status(400).json({ error: `Insufficient stock for ${p?.name || 'product'} (have ${curStock}, try to add ${newByProduct[pid] - oldPieces} more)` })
+      }
+    }
+    for (const pid of Object.keys(newByProduct)) {
+      const prod = allProducts.find(p => p.id === Number(pid))
+      const curStock = Number(prod?.stock) || 0
+      const oldPieces = oldByProduct[pid] || 0
+      const projected = curStock + oldPieces - newByProduct[pid]
+      await execute('UPDATE products SET stock = GREATEST(0, ?) WHERE id = ?', [projected, Number(pid)])
+    }
+
+    await execute('DELETE FROM order_items WHERE order_id = ?', [orderId])
+    for (const item of items) {
+      await execute(
+        'INSERT INTO order_items (order_id, product_id, quantity, unit, price_type, unit_price, total, paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [orderId, Number(item.product_id), Number(item.quantity), item.unit || 'Piece', item.price_type || 'Retail', item.price || 0, (Number(item.price) || 0) * Number(item.quantity), order.status === 'Completed' ? 1 : 0]
+      )
+    }
+    await execute('UPDATE orders SET total = ? WHERE id = ?', [total, orderId])
+    if (order.status !== 'Completed') {
+      await execute('UPDATE orders SET status = ? WHERE id = ?', ['Pending', orderId])
+    }
+
+    const updated = await queryOne(`${singleOrderSelect} WHERE o.id = ?`, [orderId])
+    const newItems = await query(
+      'SELECT oi.*, p.name as product_name FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?',
+      [orderId]
+    )
+    await logAudit(req, 'order.update', `Order ${order.order_no} items corrected (TSh ${total})`)
+    res.json({ ...updated, items: newItems })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

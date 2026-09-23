@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, createContext } from 'react'
 
 const AuthContext = createContext()
 
-const API = 'http://localhost:5000/api'
+const API = `http://${window.location.hostname}:5000/api`
 
 function loadUser() {
   try {

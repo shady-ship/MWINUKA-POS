@@ -146,6 +146,7 @@ const seed = async () => {
   await ensureColumn(pool, 'products', 'buy_price', 'DECIMAL(12,2) DEFAULT 0')
   await ensureColumn(pool, 'products', 'pieces_per_carton', 'INT NULL')
   await ensureColumn(pool, 'products', 'dozens_per_carton', 'INT NULL')
+  await ensureColumn(pool, 'products', 'pieces_per_dozen', 'INT DEFAULT 12')
   await ensureColumn(pool, 'users', 'username', 'VARCHAR(100) UNIQUE')
   await ensureColumn(pool, 'users', 'active', 'TINYINT(1) DEFAULT 1')
   await ensureColumn(pool, 'users', 'admin_modules', 'VARCHAR(500) DEFAULT NULL')

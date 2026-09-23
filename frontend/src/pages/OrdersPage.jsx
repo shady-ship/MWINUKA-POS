@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, X, Calendar } from 'lucide-react'
+import { Eye, X, Calendar, Pencil, Trash2 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 function localDate(d) {
@@ -11,7 +11,7 @@ function localDate(d) {
 }
 
 export default function OrdersPage() {
-  const { ordersList, markItemsPaid } = useApp()
+  const { ordersList, markItemsPaid, updateOrder, updateOrderItems, products } = useApp()
   const [filter, setFilter] = useState('All')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -20,11 +20,16 @@ export default function OrdersPage() {
   const [viewItems, setViewItems] = useState([])
   const [paidIds, setPaidIds] = useState([])
   const [savingPay, setSavingPay] = useState(false)
+  const [editOrder, setEditOrder] = useState(null)
+  const [editForm, setEditForm] = useState({ customer_name: '', payment_method: 'Cash', notes: '', order_date: '' })
+  const [editItems, setEditItems] = useState([])
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const today = localDate(new Date())
 
   const reloadView = async (id) => {
-    const res = await fetch(`http://localhost:5000/api/orders/${id}`)
+    const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${id}`)
     const data = await res.json()
     setViewOrder(data)
     setViewItems(data.items || [])
@@ -53,6 +58,102 @@ export default function OrdersPage() {
       await reloadView(viewOrder.id)
     }
     setSavingPay(false)
+  }
+
+  const unitsOf = (p) => {
+    if (!p) return []
+    return (p.prices || [])
+      .filter(r => r.retail_price != null || r.wholesale_price != null || r.optional_price != null)
+      .map(r => r.unit)
+  }
+
+  const typesOf = (p, unit) => {
+    const row = p && (p.prices || []).find(r => r.unit === unit)
+    if (!row) return ['Retail']
+    const types = []
+    if (row.retail_price != null) types.push('Retail')
+    if (row.wholesale_price != null) types.push('Wholesale')
+    if (row.optional_price != null) types.push('Optional')
+    return types.length ? types : ['Retail']
+  }
+
+  const priceOf = (p, unit, type) => {
+    const row = p && (p.prices || []).find(r => r.unit === unit)
+    if (!row) return 0
+    return Number(type === 'Retail' ? row.retail_price : type === 'Wholesale' ? row.wholesale_price : row.optional_price) || 0
+  }
+
+  const newLine = (p) => {
+    const unit = unitsOf(p)[0] || 'Piece'
+    const type = typesOf(p, unit)[0]
+    return { pid: p.id, qty: 1, unit, type, price: priceOf(p, unit, type) }
+  }
+
+  const openEdit = async (o) => {
+    setEditForm({
+      customer_name: o.customer_name || '',
+      payment_method: o.payment_method || 'Cash',
+      notes: o.notes || '',
+      order_date: o.order_date || '',
+    })
+    setEditItems([])
+    setEditError('')
+    setEditSaving(false)
+    setEditOrder(o)
+    try {
+      const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${o.id}`)
+      const data = await res.json()
+      setEditItems((data.items || []).map(i => ({
+        pid: i.product_id,
+        qty: Number(i.quantity) || 1,
+        unit: i.unit || 'Piece',
+        type: i.price_type || 'Retail',
+        price: Number(i.unit_price) || 0,
+      })))
+    } catch {
+      setEditItems([])
+    }
+  }
+
+  const saveOrderEdit = async () => {
+    if (!editForm.customer_name.trim()) {
+      setEditError('Customer name is required')
+      return
+    }
+    if (editItems.length === 0) {
+      setEditError('Order must contain at least one item')
+      return
+    }
+    for (const it of editItems) {
+      if (!it.pid || !Number(it.qty) || Number(it.qty) < 1) {
+        setEditError('Each item needs a product and a quantity of at least 1')
+        return
+      }
+    }
+    setEditSaving(true)
+    const detailsOk = await updateOrder(editOrder.id, {
+      customer_name: editForm.customer_name.trim(),
+      payment_method: editForm.payment_method,
+      notes: editForm.notes,
+      order_date: editForm.order_date || undefined,
+    })
+    const itemsOk = await updateOrderItems(editOrder.id, editItems.map(it => ({
+      product_id: it.pid,
+      quantity: it.qty,
+      unit: it.unit,
+      price_type: it.type,
+      price: it.price,
+    })))
+    if (!detailsOk.ok || !itemsOk.ok) {
+      setEditError(
+        itemsOk.error ||
+        `Server responded with code ${itemsOk.status || detailsOk.status || '?'} — the backend needs a restart to enable order editing. Restart it and try again.`
+      )
+      setEditSaving(false)
+      return
+    }
+    setEditOrder(null)
+    setEditSaving(false)
   }
 
   const setQuick = (range) => {
@@ -203,9 +304,14 @@ export default function OrdersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => openView(order)} className="text-accent hover:text-primary transition-colors">
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => openView(order)} className="text-accent hover:text-primary transition-colors" title="View order">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => openEdit(order)} className="text-muted hover:text-heading transition-colors" title="Edit order">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -300,6 +406,120 @@ export default function OrdersPage() {
               <div className="flex justify-between border-t border-line pt-3">
                 <span className="text-xs font-bold text-heading">BILLED TOTAL</span>
                 <span className="text-sm font-bold text-accent">TSh {Number(viewOrder.total).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editOrder && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl max-h-[88vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-heading">EDIT ORDER - {editOrder.order_no}</h3>
+                <button onClick={() => setEditOrder(null)} className="text-muted hover:text-heading"><X className="w-4 h-4" /></button>
+              </div>
+
+              <p className="text-[11px] font-semibold text-accent mb-2 uppercase tracking-wide">Order Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-heading mb-1">Customer Name *</label>
+                  <input value={editForm.customer_name} onChange={e => setEditForm({ ...editForm, customer_name: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-heading mb-1">Payment Method</label>
+                  <select value={editForm.payment_method} onChange={e => setEditForm({ ...editForm, payment_method: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <option value="Cash">Cash</option>
+                    <option value="M-Pesa">M-Pesa</option>
+                    <option value="Bank">Bank</option>
+                    <option value="Credit">Credit</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-heading mb-1">Order Date</label>
+                  <input type="date" value={editForm.order_date} onChange={e => setEditForm({ ...editForm, order_date: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-heading mb-1">Notes</label>
+                  <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold text-accent uppercase tracking-wide">Items (correct errors)</p>
+                <button onClick={() => setEditItems(prev => {
+                    const p = products.find(x => x.active !== 0)
+                    return p ? [...prev, newLine(p)] : prev
+                  })}
+                  className="text-accent text-xs font-bold hover:underline">+ Add Product</button>
+              </div>
+
+              {editItems.length === 0 && (
+                <div className="py-6 text-center text-xs text-muted rounded-lg border border-line mb-3">No items loaded. Press "+ Add Product" to add one.</div>
+              )}
+
+              <div className="space-y-2 mb-4">
+                {editItems.map((it, idx) => {
+                  const prod = products.find(p => p.id === it.pid)
+                  const units = unitsOf(prod)
+                  const types = typesOf(prod, it.unit)
+                  return (
+                    <div key={idx} className="rounded-lg border border-line p-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select
+                          value={it.pid}
+                          onChange={e => {
+                            const pid = Number(e.target.value)
+                            const p = products.find(x => x.id === pid)
+                            const nl = newLine(p)
+                            setEditItems(prev => prev.map((x, i) => i === idx ? { ...nl, qty: x.qty } : x))
+                          }}
+                          className="flex-1 min-w-[140px] px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-1 focus:ring-accent"
+                        >
+                          <option value="">Select product…</option>
+                          {products.filter(p => p.active !== 0).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <input type="number" min="1" value={it.qty}
+                          onChange={e => setEditItems(prev => prev.map((x, i) => i === idx ? { ...x, qty: Number(e.target.value) || 0 } : x))}
+                          className="w-16 px-2 py-1.5 rounded border border-line text-xs text-center focus:outline-none focus:ring-1 focus:ring-accent" />
+                        <select value={it.unit}
+                          onChange={e => {
+                            const unit = e.target.value
+                            setEditItems(prev => prev.map((x, i) => i === idx ? { ...x, unit, price: priceOf(prod, unit, x.type) } : x))
+                          }}
+                          className="px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-1 focus:ring-accent">
+                          {units.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                        <select value={it.type}
+                          onChange={e => {
+                            const type = e.target.value
+                            setEditItems(prev => prev.map((x, i) => i === idx ? { ...x, type, price: priceOf(prod, x.unit, type) } : x))
+                          }}
+                          className="px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-1 focus:ring-accent">
+                          {types.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <input type="number" min="0" value={it.price}
+                          onChange={e => setEditItems(prev => prev.map((x, i) => i === idx ? { ...x, price: Number(e.target.value) || 0 } : x))}
+                          className="w-24 px-2 py-1.5 rounded border border-line text-xs text-right focus:outline-none focus:ring-1 focus:ring-accent" />
+                        <span className="text-xs font-bold text-accent min-w-[90px] text-right">TSh {((it.price || 0) * (it.qty || 0)).toLocaleString()}</span>
+                        <button onClick={() => setEditItems(prev => prev.filter((_, i) => i !== idx))} className="text-danger hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="flex justify-between border-t border-line pt-3 mb-4">
+                <span className="text-xs font-bold text-heading">NEW TOTAL</span>
+                <span className="text-sm font-bold text-accent">TSh {editItems.reduce((s, it) => s + (it.price || 0) * (it.qty || 0), 0).toLocaleString()}</span>
+              </div>
+
+              {editError && <p className="text-xs text-danger mb-3">{editError}</p>}
+              <div className="flex gap-3">
+                <button onClick={() => setEditOrder(null)} className="flex-1 border border-line rounded-lg py-2.5 text-xs font-semibold text-heading hover:bg-gray-50 transition-colors">Cancel</button>
+                <button onClick={saveOrderEdit} disabled={editSaving} className="flex-1 bg-primary text-white rounded-lg py-2.5 text-xs font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                  <Pencil className="w-3 h-3" /> {editSaving ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </div>
           </div>

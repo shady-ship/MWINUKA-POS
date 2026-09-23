@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, AlertTriangle } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import { packBreakdown } from '../constants'
+import { stockPack } from '../constants'
 
 export default function StockPage() {
   const { products } = useApp()
@@ -63,7 +63,7 @@ export default function StockPage() {
             </thead>
             <tbody>
               {filtered.map(product => {
-                const bd = packBreakdown(product.stock, product.pieces_per_carton, product.dozens_per_carton)
+                const bd = stockPack(product)
                 return (
                 <tr key={product.id} className="border-b border-line hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
@@ -80,9 +80,9 @@ export default function StockPage() {
                       return `${x.unit} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.perCarton > 0 ? bd.cartons : '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.dozens}</td>
-                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.pieces}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasCarton ? bd.cartons : '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasDozen ? bd.dozens : '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasPiece ? bd.pieces : '—'}</td>
                   <td className="px-4 py-3 text-center">
                     {product.stock === 0 ? (
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-danger">

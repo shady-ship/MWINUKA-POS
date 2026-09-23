@@ -58,6 +58,11 @@ function normalizePack(value) {
   return isFinite(n) && n > 0 ? n : null
 }
 
+function normalizeDozen(value) {
+  const n = normalizePack(value)
+  return n > 0 ? n : 12
+}
+
 function normalizePrices(input) {
   if (!Array.isArray(input)) return []
   return input
@@ -109,7 +114,7 @@ async function savePrices(productId, prices) {
 
 router.post('/', async (req, res) => {
   try {
-    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton } = req.body
+    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
     if (!name) return res.status(400).json({ error: 'Product name is required' })
 
     const bp = Number(buy_price || 0) || 0
@@ -119,10 +124,11 @@ router.post('/', async (req, res) => {
 
     const ppc = normalizePack(pieces_per_carton)
     const dpc = normalizePack(dozens_per_carton)
+    const ppd = normalizeDozen(pieces_per_dozen)
 
     const result = await execute(
-      'INSERT INTO products (name, category, stock, min_stock, unit, active, buy_price, pieces_per_carton, dozens_per_carton) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, category || null, stock || 0, min_stock || 20, unit || null, active === undefined ? 1 : (active ? 1 : 0), bp, ppc, dpc]
+      'INSERT INTO products (name, category, stock, min_stock, unit, active, buy_price, pieces_per_carton, dozens_per_carton, pieces_per_dozen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, category || null, stock || 0, min_stock || 20, unit || null, active === undefined ? 1 : (active ? 1 : 0), bp, ppc, dpc, ppd]
     )
 
     if (normPrices.length > 0) await savePrices(result.insertId, normPrices)
@@ -136,7 +142,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton } = req.body
+    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
 
     const sets = []
     const params = []
@@ -152,6 +158,7 @@ router.put('/:id', async (req, res) => {
     }
     if (pieces_per_carton !== undefined) { sets.push('pieces_per_carton=?'); params.push(normalizePack(pieces_per_carton)) }
     if (dozens_per_carton !== undefined) { sets.push('dozens_per_carton=?'); params.push(normalizePack(dozens_per_carton)) }
+    if (pieces_per_dozen !== undefined) { sets.push('pieces_per_dozen=?'); params.push(normalizeDozen(pieces_per_dozen)) }
 
     const existing = await queryOne('SELECT * FROM products WHERE id = ?', [req.params.id])
     if (!existing) return res.status(404).json({ error: 'Product not found' })

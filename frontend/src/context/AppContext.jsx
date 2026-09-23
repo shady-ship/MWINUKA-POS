@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppContext } from './context'
 import { useAuth } from './AuthContext'
 
-const API = 'http://localhost:5000/api'
+const API = `http://${window.location.hostname}:5000/api`
 const TYPE_KEY = { Retail: 'retail_price', Wholesale: 'wholesale_price', Optional: 'optional_price' }
 let nextLineId = 1
 
@@ -409,6 +409,46 @@ const updateOrderStatus = async (orderId, status) => {
     }
   }
 
+  const updateOrder = async (orderId, data) => {
+    try {
+      const res = await fetch(`${API}/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        console.error('Order update failed:', res.status)
+        return { ok: false, status: res.status }
+      }
+      await fetchOrders()
+      return { ok: true }
+    } catch (err) {
+      console.error('Failed to update order:', err)
+      return { ok: false, status: 0 }
+    }
+  }
+
+  const updateOrderItems = async (orderId, items) => {
+    try {
+      const res = await fetch(`${API}/orders/${orderId}/items`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        console.error('Item update failed:', res.status)
+        return { ok: false, status: res.status, error: data?.error || null }
+      }
+      await fetchOrders()
+      await fetchProducts()
+      return { ok: true, data }
+    } catch (err) {
+      console.error('Failed to update order items:', err)
+      return { ok: false, status: 0, error: null }
+    }
+  }
+
   const deleteOrder = async (orderId) => {
     try {
       await fetch(`${API}/orders/${orderId}`, { method: 'DELETE' })
@@ -513,7 +553,7 @@ const updateOrderStatus = async (orderId, status) => {
     <AppContext.Provider value={{
       products, addProduct, updateProduct, deleteProduct, toggleProductActive,
       cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, removeFromCart, clearCart, cartTotal,
-      placeOrder, ordersList, updateOrderStatus, markItemsPaid, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
+      placeOrder, ordersList, updateOrderStatus, markItemsPaid, updateOrder, updateOrderItems, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
       customersList, addCustomer, updateCustomer, deleteCustomer, fetchCustomers,
       usersList, addUser, updateUser, deleteUser, fetchUsers,
       settings, updateSettings, fetchSettings,

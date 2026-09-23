@@ -3,7 +3,7 @@ import { BarChart3, TrendingUp, ShoppingCart, Package, Download, Calendar } from
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { useApp } from '../../context/useApp'
 
-const API = 'http://localhost:5000/api'
+const API = `http://${window.location.hostname}:5000/api`
 const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#8b5cf6']
 
 const todayStr = () => {
