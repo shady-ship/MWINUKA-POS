@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -49,7 +50,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const { name, phone, email } = req.body
     await execute('UPDATE customers SET name=?, phone=?, email=? WHERE id=?', [name, phone || null, email || null, req.params.id])
@@ -61,7 +62,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const customer = await queryOne('SELECT id, name FROM customers WHERE id = ?', [req.params.id])
     await execute('DELETE FROM customers WHERE id = ?', [req.params.id])

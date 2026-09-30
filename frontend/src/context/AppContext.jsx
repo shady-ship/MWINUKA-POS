@@ -112,12 +112,13 @@ export function AppProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    if (!user) return
     fetchProducts()
     fetchOrders()
     fetchCustomers()
     fetchUsers()
     fetchSettings()
-  }, [fetchProducts, fetchOrders, fetchCustomers, fetchUsers, fetchSettings])
+  }, [fetchProducts, fetchOrders, fetchCustomers, fetchUsers, fetchSettings, user])
 
   const getUnitPrice = (product, unit, type, manualPrice) => {
     const prices = product.prices || []

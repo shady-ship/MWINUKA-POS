@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, execute } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -30,7 +31,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.put('/', async (req, res) => {
+router.put('/', adminOnly, async (req, res) => {
   try {
     const allowed = new Set(Object.keys(DEFAULT_SETTINGS))
     const changed = []

@@ -4,6 +4,43 @@ const AuthContext = createContext()
 
 const API = `/api`
 
+function loadUser() {
+  try {
+    const data = localStorage.getItem('mwinuka_auth')
+    return data ? JSON.parse(data) : null
+  } catch {
+    return null
+  }
+}
+
+let session = null
+let expireHandler = null
+
+function syncSession(user) {
+  session = user ? { id: user.id, sessionId: user.sessionId, token: user.token } : null
+}
+
+function expire() {
+  session = null
+  if (expireHandler) expireHandler()
+}
+
+const originalFetch = window.fetch
+window.fetch = async (input, init) => {
+  const sent = session
+  const headers = new Headers(init?.headers || (input?.headers || {}))
+  if (sent?.id) headers.set('x-user-id', String(sent.id))
+  if (sent?.sessionId) headers.set('x-session-id', String(sent.sessionId))
+  if (sent?.token) headers.set('Authorization', `Bearer ${sent.token}`)
+  const res = await originalFetch(input, { ...init, headers })
+  const url = String(input?.url || input || '')
+  const isAuth = url.includes('/auth/login') || url.includes('/auth/logout')
+  if (res.status === 401 && !isAuth && sent && session === sent) expire()
+  return res
+}
+
+session = loadUser()
+
 function detectDevice() {
   const ua = navigator.userAgent || ''
   let browser = 'Unknown'
@@ -24,40 +61,18 @@ function detectDevice() {
   return { label, browser, os }
 }
 
-function loadUser() {
-  try {
-    const data = localStorage.getItem('mwinuka_auth')
-    return data ? JSON.parse(data) : null
-  } catch {
-    return null
-  }
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadUser)
 
   useEffect(() => {
+    syncSession(user)
+    expireHandler = () => setUser(null)
     if (user) {
       localStorage.setItem('mwinuka_auth', JSON.stringify(user))
     } else {
       localStorage.removeItem('mwinuka_auth')
     }
-  }, [user])
-
-  useEffect(() => {
-    if (!user) return
-    const original = window.fetch
-    window.fetch = async (input, init) => {
-      const headers = new Headers(init?.headers || (input?.headers || {}))
-      headers.set('x-user-id', String(user.id))
-      if (user.sessionId) headers.set('x-session-id', String(user.sessionId))
-      const res = await original(input, { ...init, headers })
-      const url = String(input?.url || input || '')
-      const isAuth = url.includes('/auth/login') || url.includes('/auth/logout')
-      if (res.status === 401 && !isAuth) setUser(null)
-      return res
-    }
-    return () => { window.fetch = original }
+    return () => { expireHandler = null }
   }, [user])
 
   useEffect(() => {
@@ -83,7 +98,9 @@ export function AuthProvider({ children }) {
       })
       const data = await res.json()
       if (!res.ok) return { success: false, error: data.error || 'Invalid credentials' }
-      setUser({ ...data.user, sessionId: data.session_id })
+      const auth = { id: data.user.id, sessionId: data.session_id, token: data.token }
+      session = auth
+      setUser({ ...data.user, token: data.token, sessionId: data.session_id })
       return { success: true, user: data.user }
     } catch (err) {
       return { success: false, error: 'Unable to connect to server' }
@@ -98,6 +115,7 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ sessionId: user.sessionId }),
       }).catch(() => {})
     }
+    session = null
     setUser(null)
   }
 

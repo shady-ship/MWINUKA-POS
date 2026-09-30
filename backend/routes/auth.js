@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit, parseModules } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -107,7 +108,7 @@ router.post('/sessions/:id/revoke', async (req, res) => {
   }
 })
 
-router.get('/users', async (req, res) => {
+router.get('/users', adminOnly, async (req, res) => {
   try {
     const rows = await query('SELECT id, name, username, email, role, admin_modules, allow_manual_price, active, created_at FROM users ORDER BY id')
     res.json(rows)
@@ -116,7 +117,7 @@ router.get('/users', async (req, res) => {
   }
 })
 
-router.post('/users', async (req, res) => {
+router.post('/users', adminOnly, async (req, res) => {
   try {
     const { name, username, email, password, role, admin_modules, allow_manual_price } = req.body
     if (!name || !password) return res.status(400).json({ error: 'Name and password are required' })
@@ -141,6 +142,13 @@ router.post('/users', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   try {
     const { name, username, email, password, role, active, admin_modules, allow_manual_price } = req.body
+    const targetId = Number(req.params.id)
+    const isAdmin = req.user?.role === 'admin'
+    if (!isAdmin && req.user?.id !== targetId) return res.status(403).json({ error: 'Admin access required' })
+    if (!isAdmin && (role !== undefined || active !== undefined || admin_modules !== undefined || allow_manual_price !== undefined)) {
+      return res.status(403).json({ error: 'Only an admin can change role and access permissions' })
+    }
+
     const user = await queryOne('SELECT * FROM users WHERE id = ?', [req.params.id])
     if (!user) return res.status(404).json({ error: 'User not found' })
 
@@ -173,7 +181,9 @@ router.put('/users/:id', async (req, res) => {
 
 router.post('/change-password', async (req, res) => {
   try {
-    const { userId, currentPassword, newPassword } = req.body
+    const { currentPassword, newPassword } = req.body
+    const isAdmin = req.user?.role === 'admin'
+    const userId = isAdmin && req.body.userId ? Number(req.body.userId) : req.user?.id
     const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId])
     if (!user) return res.status(404).json({ error: 'User not found' })
     if (!bcrypt.compareSync(currentPassword || '', user.password)) {
@@ -190,7 +200,7 @@ router.post('/change-password', async (req, res) => {
   }
 })
 
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', adminOnly, async (req, res) => {
   try {
     const user = await queryOne('SELECT id, name FROM users WHERE id = ?', [req.params.id])
     await execute('DELETE FROM users WHERE id = ?', [req.params.id])
@@ -201,7 +211,7 @@ router.delete('/users/:id', async (req, res) => {
   }
 })
 
-router.post('/register', async (req, res) => {
+router.post('/register', adminOnly, async (req, res) => {
   try {
     const { name, username, email, password, role } = req.body
     const hash = bcrypt.hashSync(password, 10)

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -69,7 +70,7 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.put('/:id/pay-items', async (req, res) => {
+router.put('/:id/pay-items', adminOnly, async (req, res) => {
   try {
     const orderId = req.params.id
     const { item_ids } = req.body
@@ -173,7 +174,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const { customer_name, payment_method, notes, order_date } = req.body
     const order = await queryOne('SELECT order_no FROM orders WHERE id = ?', [req.params.id])
@@ -204,7 +205,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.put('/:id/items', async (req, res) => {
+router.put('/:id/items', adminOnly, async (req, res) => {
   try {
     const orderId = req.params.id
     const { items } = req.body
@@ -276,7 +277,7 @@ router.put('/:id/items', async (req, res) => {
   }
 })
 
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', adminOnly, async (req, res) => {
   try {
     const { status } = req.body
     await execute('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id])
@@ -293,7 +294,7 @@ router.put('/:id/status', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const order = await queryOne('SELECT id, order_no, total FROM orders WHERE id = ?', [req.params.id])
     const items = await query('SELECT product_id, quantity, unit FROM order_items WHERE order_id = ?', [req.params.id])

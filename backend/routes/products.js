@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -130,7 +131,7 @@ async function savePrices(productId, prices) {
   }
 }
 
-router.post('/', async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
     if (!name) return res.status(400).json({ error: 'Product name is required' })
@@ -157,7 +158,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
 
@@ -204,7 +205,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const product = await queryOne('SELECT id, name FROM products WHERE id = ?', [req.params.id])
     await execute('DELETE FROM products WHERE id = ?', [req.params.id])

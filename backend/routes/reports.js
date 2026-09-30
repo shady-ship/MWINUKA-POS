@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
+import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
-router.delete('/reset-orders', async (req, res) => {
+router.delete('/reset-orders', adminOnly, async (req, res) => {
   try {
     await execute('DELETE FROM order_items')
     await execute('DELETE FROM orders')
@@ -16,7 +17,7 @@ router.delete('/reset-orders', async (req, res) => {
   }
 })
 
-router.delete('/reset-all', async (req, res) => {
+router.delete('/reset-all', adminOnly, async (req, res) => {
   try {
     await execute('DELETE FROM order_items')
     await execute('DELETE FROM orders')

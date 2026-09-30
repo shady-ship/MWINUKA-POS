@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDb } from './config/db.js'
+import { auth } from './middleware/auth.js'
 import authRoutes from './routes/auth.js'
 import productRoutes from './routes/products.js'
 import orderRoutes from './routes/orders.js'
@@ -11,7 +12,6 @@ import reportRoutes from './routes/reports.js'
 import customerRoutes from './routes/customers.js'
 import settingsRoutes from './routes/settings.js'
 import auditRoutes from './routes/audit.js'
-import { queryOne, execute } from './config/db.js'
 
 dotenv.config()
 
@@ -23,30 +23,15 @@ const DIST = path.join(__dirname, '..', 'frontend', 'dist')
 app.use(cors())
 app.use(express.json())
 
-app.use(async (req, res, next) => {
-  try {
-    const id = req.headers['x-user-id']
-    if (id) {
-      const u = await queryOne('SELECT id, name, username, role, active FROM users WHERE id = ? AND active = 1', [id])
-      const sid = req.headers['x-session-id']
-      if (u && sid) {
-        const s = await queryOne('SELECT id, user_id, logout_at FROM sessions WHERE id = ? AND user_id = ?', [sid, id])
-        if (!s || s.logout_at) {
-          return res.status(401).json({ error: 'Session ended. Please log in again.' })
-        }
-        await execute('UPDATE sessions SET last_seen = NOW() WHERE id = ? AND logout_at IS NULL AND last_seen < NOW() - INTERVAL 1 MINUTE', [sid])
-        req.user = u
-      } else {
-        req.user = u || null
-        if (sid && !u) {
-          return res.status(401).json({ error: 'Session ended. Please log in again.' })
-        }
-      }
-    }
-    next()
-  } catch (e) {
-    next()
-  }
+const PUBLIC_ROUTES = [
+  ['POST', '/auth/login'],
+  ['GET', '/health'],
+]
+
+app.use('/api', (req, res, next) => {
+  const isPublic = PUBLIC_ROUTES.some(([method, path]) => method === req.method && (req.path === path || req.path.startsWith(`${path}/`)))
+  if (isPublic) return next()
+  return auth(req, res, next)
 })
 
 async function start() {
