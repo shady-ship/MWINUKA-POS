@@ -33,8 +33,8 @@ router.get('/dashboard', async (req, res) => {
   try {
     const totalProducts = (await queryOne('SELECT COUNT(*) as count FROM products'))?.count || 0
     const totalStock = (await queryOne('SELECT COALESCE(SUM(stock), 0) as total FROM products'))?.total || 0
-    const todaySales = (await queryOne('SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE order_date = CURDATE()'))?.total || 0
-    const totalRevenue = (await queryOne('SELECT COALESCE(SUM(total), 0) as total FROM orders'))?.total || 0
+    const todaySales = (await queryOne('SELECT COALESCE(SUM(oi.total), 0) as total FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.paid = 1 AND o.order_date = CURDATE()'))?.total || 0
+    const totalRevenue = (await queryOne('SELECT COALESCE(SUM(total), 0) as total FROM order_items WHERE paid = 1'))?.total || 0
 
     res.json({ totalProducts, totalStock, todaySales, totalRevenue })
   } catch (err) {
@@ -45,10 +45,11 @@ router.get('/dashboard', async (req, res) => {
 router.get('/sales', async (req, res) => {
   try {
     const sales = await query(`
-      SELECT DATE(order_date) as date, SUM(total) as sales
-      FROM orders
-      WHERE order_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-      GROUP BY DATE(order_date)
+      SELECT DATE(o.order_date) as date, SUM(oi.total) as sales
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE oi.paid = 1 AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+      GROUP BY DATE(o.order_date)
       ORDER BY date
     `)
     res.json(sales)
@@ -117,7 +118,12 @@ router.get('/by-date', async (req, res) => {
       orders.forEach(o => { o.items = itemsByOrder[o.id] || [] })
     }
 
-    const totalSales = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+    const totalSales = (await queryOne(`
+      SELECT COALESCE(SUM(oi.total), 0) as total
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE oi.paid = 1 AND o.order_date = ?
+    `, [date]))?.total || 0
     res.json({ date, totalSales, orders })
   } catch (err) {
     res.status(500).json({ error: err.message })

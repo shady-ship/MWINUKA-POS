@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart,
   ClipboardList, Users, UserPlus, BarChart3, Settings, LogOut,
-  Store, ShoppingBag, FileText, Boxes, History
+  Store, ShoppingBag, FileText, Boxes, History, MonitorSmartphone
 } from 'lucide-react'
 import { useApp } from '../../context/useApp'
 import { useAuth } from '../../context/AuthContext'
@@ -16,6 +16,7 @@ const links = [
   { label: 'Orders', to: '/admin/orders', icon: ClipboardList, module: 'orders' },
   { label: 'Customers', to: '/admin/customers', icon: Users, module: 'customers' },
   { label: 'Staff', to: '/admin/users', icon: UserPlus, module: 'users' },
+  { label: 'Devices', to: '/admin/devices', icon: MonitorSmartphone, module: 'devices' },
   { label: 'Reports', to: '/admin/reports', icon: BarChart3, module: 'reports' },
   { label: 'Audit Log', to: '/admin/audit', icon: History, module: 'audit' },
   { label: 'Settings', to: '/admin/settings', icon: Settings, module: 'settings' },

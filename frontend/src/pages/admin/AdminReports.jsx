@@ -3,7 +3,7 @@ import { BarChart3, TrendingUp, ShoppingCart, Package, Download, Calendar } from
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { useApp } from '../../context/useApp'
 
-const API = `http://${window.location.hostname}:5000/api`
+const API = `/api`
 const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#8b5cf6']
 
 const todayStr = () => {
@@ -19,7 +19,7 @@ export default function AdminReports() {
 
   const totalProducts = products.length
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0)
-  const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+  const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.paid_total) || 0), 0)
 
   const monthlySales = (() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -30,7 +30,7 @@ export default function AdminReports() {
         if (!o.order_date) return false
         const d = new Date(o.order_date.slice(0, 10))
         return d.getMonth() === i
-      }).reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+      }).reduce((sum, o) => sum + (Number(o.paid_total) || 0), 0)
     }))
   })()
 

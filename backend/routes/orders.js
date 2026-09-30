@@ -121,6 +121,33 @@ router.post('/', async (req, res) => {
     }
 
     const total = items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0)
+    const itemPids = [...new Set(items.map(i => Number(i.product_id)).filter(Boolean))]
+    if (itemPids.length > 0) {
+      const buys = await query(`SELECT id, buy_price, pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id IN (${itemPids.map(() => '?').join(',')})`, itemPids)
+      const buyOf = {}
+      buys.forEach(b => { buyOf[b.id] = b })
+      const unitCost = (bp, unit, ppc, dpc, ppd) => {
+        if (bp <= 0) return 0
+        const per = (Number(ppc) || 0) > 0 ? Number(ppc) : (Number(dpc) || 0) > 0 ? Number(dpc) * (Number(ppd) || 12) : 0
+        if (unit === 'Carton') return bp
+        if (per > 0) {
+          const perPiece = bp / per
+          if (unit === 'Dozen') return perPiece * (Number(ppd) || 12)
+          return perPiece
+        }
+        if (unit === 'Dozen') return bp * (Number(ppd) || 12)
+        return bp
+      }
+      for (const item of items) {
+        const prod = buyOf[Number(item.product_id)]
+        if (!prod) continue
+        const cost = unitCost(Number(prod.buy_price) || 0, item.unit || 'Piece', prod.pieces_per_carton, prod.dozens_per_carton, prod.pieces_per_dozen)
+        const sp = Number(item.price) || 0
+        if (cost > 0 && sp > 0 && sp <= cost && String(item.price_type || 'Retail').toLowerCase() === 'optional') {
+          return res.status(400).json({ error: `Optional price TSh ${sp.toLocaleString()} must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})` })
+        }
+      }
+    }
     const orderNo = `ORD${String(Date.now()).slice(-6)}`
 
     const orderResult = await execute(

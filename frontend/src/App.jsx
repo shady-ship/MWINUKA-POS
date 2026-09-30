@@ -18,6 +18,7 @@ import AdminSales from './pages/admin/AdminSales'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminCustomers from './pages/admin/AdminCustomers'
 import AdminUsers from './pages/admin/AdminUsers'
+import AdminDevices from './pages/admin/AdminDevices'
 import AdminReports from './pages/admin/AdminReports'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminAudit from './pages/admin/AdminAudit'
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="orders" element={<AdminGate module="orders"><AdminOrders /></AdminGate>} />
         <Route path="customers" element={<AdminGate module="customers"><AdminCustomers /></AdminGate>} />
         <Route path="users" element={<AdminGate module="users"><AdminUsers /></AdminGate>} />
+        <Route path="devices" element={<AdminGate module="devices"><AdminDevices /></AdminGate>} />
         <Route path="reports" element={<AdminGate module="reports"><AdminReports /></AdminGate>} />
         <Route path="settings" element={<AdminGate module="settings"><AdminSettings /></AdminGate>} />
         <Route path="audit" element={<AdminGate module="audit"><AdminAudit /></AdminGate>} />

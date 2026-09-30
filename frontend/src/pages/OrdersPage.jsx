@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, X, Calendar, Pencil, Trash2 } from 'lucide-react'
+import { Eye, X, Calendar, Pencil, Trash2, Printer } from 'lucide-react'
 import { useApp } from '../context/useApp'
+import InvoicePrint from '../components/InvoicePrint'
 
 function localDate(d) {
   const y = d.getFullYear()
@@ -25,11 +26,13 @@ export default function OrdersPage() {
   const [editItems, setEditItems] = useState([])
   const [editError, setEditError] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [printOrder, setPrintOrder] = useState(null)
+  const [printItems, setPrintItems] = useState([])
 
   const today = localDate(new Date())
 
   const reloadView = async (id) => {
-    const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${id}`)
+    const res = await fetch(`/api/orders/${id}`)
     const data = await res.json()
     setViewOrder(data)
     setViewItems(data.items || [])
@@ -43,6 +46,18 @@ export default function OrdersPage() {
       setViewOrder(o)
       setViewItems([])
       setPaidIds([])
+    }
+  }
+
+  const openPrint = async (o) => {
+    try {
+      const res = await fetch(`/api/orders/${o.id}`)
+      const data = await res.json()
+      setPrintOrder(data)
+      setPrintItems(data.items || [])
+    } catch {
+      setPrintOrder(o)
+      setPrintItems([])
     }
   }
 
@@ -101,7 +116,7 @@ export default function OrdersPage() {
     setEditSaving(false)
     setEditOrder(o)
     try {
-      const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${o.id}`)
+      const res = await fetch(`/api/orders/${o.id}`)
       const data = await res.json()
       setEditItems((data.items || []).map(i => ({
         pid: i.product_id,
@@ -308,6 +323,9 @@ export default function OrdersPage() {
                       <button onClick={() => openView(order)} className="text-accent hover:text-primary transition-colors" title="View order">
                         <Eye className="w-4 h-4" />
                       </button>
+                      <button onClick={() => openPrint(order)} className="text-muted hover:text-accent transition-colors" title="Print copy">
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openEdit(order)} className="text-muted hover:text-heading transition-colors" title="Edit order">
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -403,7 +421,10 @@ export default function OrdersPage() {
                 </div>
                 <p className="text-[10px] text-muted mt-2">Order stays <b className="text-warning">Billed</b> until every item is marked paid — then it becomes <b className="text-success">Completed</b>.</p>
               </div>
-              <div className="flex justify-between border-t border-line pt-3">
+              <div className="flex items-center justify-between border-t border-line pt-3">
+                <button onClick={() => { setPrintOrder(viewOrder); setPrintItems(viewItems) }} className="flex items-center gap-1.5 bg-accent text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors">
+                  <Printer className="w-3.5 h-3.5" /> Print Copy
+                </button>
                 <span className="text-xs font-bold text-heading">BILLED TOTAL</span>
                 <span className="text-sm font-bold text-accent">TSh {Number(viewOrder.total).toLocaleString()}</span>
               </div>
@@ -523,6 +544,13 @@ export default function OrdersPage() {
               </div>
             </div>
           </div>
+        )}
+      {printOrder && (
+          <InvoicePrint
+            order={printOrder}
+            items={printItems}
+            onClose={() => { setPrintOrder(null); setPrintItems([]) }}
+          />
         )}
       </div>
     </div>

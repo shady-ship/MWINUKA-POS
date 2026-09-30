@@ -79,7 +79,7 @@ export default function AdminOrders() {
   const cancelledTotal = sumTotal(cancelledOrders)
 
   const reloadView = async (id) => {
-    const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${id}`)
+    const res = await fetch(`/api/orders/${id}`)
     const data = await res.json()
     setViewOrder(data)
     setViewItems(data.items || [])
@@ -113,7 +113,7 @@ export default function AdminOrders() {
   const openPrint = async (o) => {
     setLoadingItems(true)
     try {
-      const res = await fetch(`http://${window.location.hostname}:5000/api/orders/${o.id}`)
+      const res = await fetch(`/api/orders/${o.id}`)
       const data = await res.json()
       setPrintOrder(data)
       setPrintItems(data.items || [])

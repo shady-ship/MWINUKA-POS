@@ -6,6 +6,7 @@ export const ADMIN_MODULES = [
   { key: 'orders', label: 'Orders' },
   { key: 'customers', label: 'Customers' },
   { key: 'users', label: 'Staff' },
+  { key: 'devices', label: 'Devices' },
   { key: 'reports', label: 'Reports' },
   { key: 'settings', label: 'Settings' },
   { key: 'audit', label: 'Audit Log' },
@@ -24,6 +25,21 @@ export function packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen =
   if (ppc > 0) return ppc
   if (dpc > 0) return dpc * (Number(piecesPerDozen) || 12)
   return 0
+}
+
+export function unitBuyCost(buyPrice, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
+  const bp = Number(buyPrice) || 0
+  const ppd = Number(piecesPerDozen) || 12
+  if (bp <= 0) return 0
+  const per = packPerCarton(piecesPerCarton, dozensPerCarton, ppd)
+  if (unit === 'Carton') return bp
+  if (per > 0) {
+    const perPiece = bp / per
+    if (unit === 'Dozen') return perPiece * ppd
+    return perPiece
+  }
+  if (unit === 'Dozen') return bp * ppd
+  return bp
 }
 
 export function piecesForQty(qty, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
@@ -64,8 +80,9 @@ export function stockPack(product) {
   const dpc = Number(product?.dozens_per_carton) || 0
   const ppd = Number(product?.pieces_per_dozen) || 12
   const units = priceUnits(product?.prices)
-  const perCarton = packPerCarton(ppc, dpc, ppd)
-  const hasCarton = perCarton > 0
+  const rawPer = packPerCarton(ppc, dpc, ppd)
+  const hasCarton = rawPer > 0 || units.includes('Carton')
+  const perCarton = hasCarton ? (rawPer > 0 ? rawPer : 1) : 0
   const hasDozen = units.includes('Dozen')
   const hasPiece = units.includes('Piece')
   let rem = total

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppContext } from './context'
 import { useAuth } from './AuthContext'
 
-const API = `http://${window.location.hostname}:5000/api`
+const API = `/api`
 const TYPE_KEY = { Retail: 'retail_price', Wholesale: 'wholesale_price', Optional: 'optional_price' }
 let nextLineId = 1
 

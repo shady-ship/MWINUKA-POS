@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Search, Edit, Trash2, X, Power, Copy } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts } from '../../constants'
+import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost } from '../../constants'
 
 const UNIT_ROWS = ['Piece', 'Dozen', 'Carton']
 
@@ -98,6 +98,24 @@ export default function AdminProducts() {
     if (!form.name.trim()) { setError('Product name is required'); return }
     if (form.prices.every(p => !p.enabled || (!Number(p.retail) && !Number(p.wholesale) && !Number(p.optional)))) {
       setError('Enable at least one unit and set at least one price'); return
+    }
+    const bp = Number(form.buyPrice || 0)
+    if (bp > 0) {
+      const labelOf = { retail: 'Retail', wholesale: 'Wholesale', optional: 'Optional' }
+      for (const p of form.prices) {
+        if (!p.enabled) continue
+        const cost = unitBuyCost(bp, p.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)
+        for (const f of ['retail', 'wholesale', 'optional']) {
+          const val = Number(p[f]) || 0
+          if (val > 0 && cost > 0 && val <= cost) {
+            const packHint = packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) === 0 && p.unit !== 'Piece'
+              ? ' (Set Pieces/Dozens per Carton above if the Buy Price is for a carton.)'
+              : ''
+            setError(`${labelOf[f]} price for ${p.unit} (TSh ${val.toLocaleString()}) must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})${packHint}`)
+            return
+          }
+        }
+      }
     }
     setSaving(true)
     setError('')
@@ -249,12 +267,11 @@ export default function AdminProducts() {
                       <option value="Carton">crtn</option>
                     </select>
                   </div>
-                  <p className="text-[10px] text-muted mt-0.5">
-                    = {piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)} pieces
-                    {packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0 && piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0
-                      ? ` (${formatPackBreakdown(piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen), form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)})`
-                      : ''}
-                  </p>
+                  {packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0 && piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) > 0 && (
+                      <p className="text-[10px] text-muted mt-0.5">
+                        ({formatPackBreakdown(piecesForQty(Number(form.stock || 0), stockUnit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen), form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)})
+                      </p>
+                    )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-heading mb-1">Min Stock *</label>
@@ -265,6 +282,13 @@ export default function AdminProducts() {
                   <label className="block text-xs font-semibold text-heading mb-1">Buy Price (TSh) *</label>
                   <input value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} type="number" min="0" placeholder="0"
                     className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  {Number(form.buyPrice) > 0 && packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) === 0 ? (
+                    <p className="text-[10px] text-warning mt-0.5">Buy Price is treated as the cost of ONE PIECE because no pack size is set. If you buy by carton, enter Pieces/Dozens per Carton below — the Buy cost for each unit is then calculated automatically.</p>
+                  ) : Number(form.buyPrice) > 0 ? (
+                    <p className="text-[10px] text-muted mt-0.5">
+                      Buy costs: {form.prices.filter(p => p.enabled).map(p => `${p.unit} TSh ${unitBuyCost(form.buyPrice, p.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen).toLocaleString()}`).join(' • ')} — selling prices must be above each.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -295,13 +319,12 @@ export default function AdminProducts() {
 
               <div>
                 <p className="text-xs font-bold text-heading mb-2">PRICES PER UNIT (Retail, Wholesale & Optional)</p>
-                <p className="text-[10px] text-muted mb-3">Optional price must be greater than the Buy Price.</p>
+                <p className="text-[10px] text-muted mb-3">Each selling price must be greater than the Buy cost for that unit. Only ticked units are saved.</p>
                 <div className="space-y-2">
                   {form.prices.map((row, idx) => (
                     <div
                       key={row.unit}
-                      onClick={() => setPrice(idx, 'enabled', !row.enabled)}
-                      className={`flex items-center gap-2 rounded-lg p-2 flex-wrap cursor-pointer transition-colors ${row.enabled ? 'bg-gray-50 border border-line' : 'bg-gray-100 border border-dashed border-line opacity-60'}`}
+                      className={`flex items-center gap-2 rounded-lg p-2 flex-wrap transition-colors ${row.enabled ? 'bg-gray-50 border border-line' : 'bg-gray-100 border border-dashed border-line opacity-60'}`}
                     >
                       <label className="flex items-center gap-2 w-32 cursor-pointer" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={row.enabled} onChange={e => setPrice(idx, 'enabled', e.target.checked)} className="accent-primary" />
@@ -309,33 +332,36 @@ export default function AdminProducts() {
                         {!row.enabled && <span className="text-[9px] font-bold text-muted bg-white px-1.5 py-0.5 rounded-full border border-line">OFF</span>}
                       </label>
                       {row.enabled ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-1">
-                            <label className="text-[10px] font-bold text-success">R</label>
-                            <input value={row.retail} onChange={e => setPrice(idx, 'retail', e.target.value)} type="number" min="0" placeholder="Retail"
-                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent"
-                              onClick={e => e.stopPropagation()} />
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] font-bold text-success">R</label>
+                              <input value={row.retail} onChange={e => setPrice(idx, 'retail', e.target.value)} type="number" min="0" placeholder="Retail"
+                                className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${(() => { const c = Number(form.buyPrice) > 0 ? unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) : 0; return Number(row.retail) > 0 && c > 0 && Number(row.retail) <= c ? 'border-red-400 bg-red-50' : 'border-line' })()}`}
+                                onClick={e => e.stopPropagation()} />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] font-bold text-warning">W</label>
+                              <input value={row.wholesale} onChange={e => setPrice(idx, 'wholesale', e.target.value)} type="number" min="0" placeholder="Wholesale"
+                                className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${(() => { const c = Number(form.buyPrice) > 0 ? unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) : 0; return Number(row.wholesale) > 0 && c > 0 && Number(row.wholesale) <= c ? 'border-red-400 bg-red-50' : 'border-line' })()}`}
+                                onClick={e => e.stopPropagation()} />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] font-bold text-danger">O</label>
+                              <input value={row.optional} onChange={e => setPrice(idx, 'optional', e.target.value)} type="number" min="0" placeholder="Optional"
+                                className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${(() => { const c = Number(form.buyPrice) > 0 ? unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) : 0; return Number(row.optional) > 0 && c > 0 && Number(row.optional) <= c ? 'border-red-400 bg-red-50' : 'border-line' })()}`}
+                                onClick={e => e.stopPropagation()} />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <label className="text-[10px] font-bold text-warning">W</label>
-                            <input value={row.wholesale} onChange={e => setPrice(idx, 'wholesale', e.target.value)} type="number" min="0" placeholder="Wholesale"
-                              className="w-24 px-2 py-1.5 rounded border border-line text-xs focus:outline-none focus:ring-2 focus:ring-accent"
-                              onClick={e => e.stopPropagation()} />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <label className="text-[10px] font-bold text-danger">O</label>
-                            <input value={row.optional} onChange={e => setPrice(idx, 'optional', e.target.value)} type="number" min="0" placeholder="Optional"
-                              className={`w-24 px-2 py-1.5 rounded border text-xs focus:outline-none focus:ring-2 focus:ring-accent ${Number(row.optional) > 0 && Number(form.buyPrice) > 0 && Number(row.optional) <= Number(form.buyPrice) ? 'border-red-400 bg-red-50' : 'border-line'}`}
-                              onClick={e => e.stopPropagation()} />
-                          </div>
-                          <span className="text-[10px] text-muted">
-                            {Number(row.optional) > 0 && Number(form.buyPrice) > 0 && Number(row.optional) <= Number(form.buyPrice) && (
-                              <span className="text-danger font-bold">Optional must be {'>'} buy price!</span>
-                            )}
-                          </span>
+                          {Number(form.buyPrice) > 0 && (
+                            <span className="text-[10px] text-muted">Buy cost for {row.unit}: TSh {unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen).toLocaleString()}</span>
+                          )}
+                          {(['retail', 'wholesale', 'optional'].some(f => { const c = Number(form.buyPrice) > 0 ? unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) : 0; return Number(row[f]) > 0 && c > 0 && Number(row[f]) <= c }) && (
+                            <span className="text-danger font-bold text-[10px]">Must be {'>'} buy price (TSh {unitBuyCost(form.buyPrice, row.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen).toLocaleString()})!</span>
+                          ))}
                         </div>
                       ) : (
-                        <span className="text-[10px] text-muted">Click to enable this unit</span>
+                        <span className="text-[10px] text-muted">Tick the checkbox to enable this unit</span>
                       )}
                     </div>
                   ))}

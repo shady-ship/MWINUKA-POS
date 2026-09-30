@@ -6,6 +6,12 @@ import { logAudit, parseModules } from '../config/audit.js'
 
 const router = Router()
 
+const clientIp = (req) => {
+  const fwd = req.headers['x-forwarded-for']
+  if (fwd) return String(fwd).split(',')[0].trim()
+  return req.socket?.remoteAddress || req.ip || ''
+}
+
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -20,11 +26,82 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     )
-    await logAudit(req, 'auth.login', `${user.name} logged in`)
+
+    const device = req.body.device || {}
+    let sessionId = null
+    try {
+      const r = await execute(
+        'INSERT INTO sessions (user_id, device_label, browser, os, ip) VALUES (?, ?, ?, ?, ?)',
+        [user.id, device.label || device.browser || 'Device', device.browser || '', device.os || '', clientIp(req)]
+      )
+      sessionId = r.insertId
+    } catch (e) { }
+
+    await logAudit(req, 'auth.login', `${user.name} logged in${device.label ? ` from ${device.label}` : ''}`)
     res.json({
       token,
-      user: { id: user.id, name: user.name, role: user.role, username: user.username, admin_modules: parseModules(user.admin_modules).join(',') },
+      session_id: sessionId,
+      user: { id: user.id, name: user.name, role: user.role, username: user.username, admin_modules: parseModules(user.admin_modules).join(','), allow_manual_price: user.allow_manual_price ? 1 : 0 },
     })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.post('/logout', async (req, res) => {
+  try {
+    const { sessionId } = req.body
+    if (sessionId) {
+      await execute('UPDATE sessions SET logout_at = NOW() WHERE id = ? AND logout_at IS NULL', [sessionId])
+    }
+    if (req.user) await logAudit(req, 'auth.logout', `${req.user.name} logged out`)
+    res.json({ message: 'Logged out' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.post('/ping', async (req, res) => {
+  try {
+    const sessionId = req.body.sessionId || req.headers['x-session-id']
+    const userId = req.headers['x-user-id']
+    if (sessionId && userId) {
+      await execute('UPDATE sessions SET last_seen = NOW() WHERE id = ? AND user_id = ? AND logout_at IS NULL', [sessionId, userId])
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/sessions', async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' })
+    const sessions = await query(
+      `SELECT s.id, s.user_id, u.name, u.role, s.device_label, s.browser, s.os, s.ip,
+              s.login_at, s.last_seen, s.logout_at,
+              CASE WHEN s.logout_at IS NULL THEN 1 ELSE 0 END AS active
+       FROM sessions s LEFT JOIN users u ON u.id = s.user_id
+       ORDER BY s.login_at DESC`
+    )
+    const now = Date.now()
+    const online = sessions.filter(s => !s.logout_at && now - new Date(s.last_seen).getTime() <= 120000).length
+    const active = sessions.filter(s => !s.logout_at).length
+    res.json({ sessions, counts: { online, active, total: sessions.length } })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.post('/sessions/:id/revoke', async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' })
+    const { id } = req.params
+    const session = await queryOne('SELECT s.id, u.name, s.device_label FROM sessions s LEFT JOIN users u ON u.id = s.user_id WHERE s.id = ?', [id])
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    await execute('UPDATE sessions SET logout_at = NOW() WHERE id = ? AND logout_at IS NULL', [id])
+    await logAudit(req, 'auth.session_revoke', `Signed out ${session.name || 'user'} session (${session.device_label || 'device'})`)
+    res.json({ message: 'Session signed out' })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -32,7 +109,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/users', async (req, res) => {
   try {
-    const rows = await query('SELECT id, name, username, email, role, admin_modules, active, created_at FROM users ORDER BY id')
+    const rows = await query('SELECT id, name, username, email, role, admin_modules, allow_manual_price, active, created_at FROM users ORDER BY id')
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -41,18 +118,18 @@ router.get('/users', async (req, res) => {
 
 router.post('/users', async (req, res) => {
   try {
-    const { name, username, email, password, role, admin_modules } = req.body
+    const { name, username, email, password, role, admin_modules, allow_manual_price } = req.body
     if (!name || !password) return res.status(400).json({ error: 'Name and password are required' })
     if (!username && !email) return res.status(400).json({ error: 'Username or email is required' })
     const existing = await queryOne('SELECT id FROM users WHERE username = ? OR email = ?', [username || null, email || `${username || name}@mwinuka.co.tz`])
     if (existing) return res.status(400).json({ error: 'Username already exists, choose a different one' })
     const hash = bcrypt.hashSync(password, 10)
     const result = await execute(
-      'INSERT INTO users (name, username, email, password, role, active, admin_modules) VALUES (?, ?, ?, ?, ?, 1, ?)',
-      [name, username || null, email || `${username || name}@mwinuka.co.tz`, hash, role || 'sales_staff', parseModules(admin_modules).join(',')]
+      'INSERT INTO users (name, username, email, password, role, active, admin_modules, allow_manual_price) VALUES (?, ?, ?, ?, ?, 1, ?, ?)',
+      [name, username || null, email || `${username || name}@mwinuka.co.tz`, hash, role || 'sales_staff', parseModules(admin_modules).join(','), allow_manual_price ? 1 : 0]
     )
     await logAudit(req, 'user.add', `Added user ${name} (${role || 'sales_staff'})`)
-    res.status(201).json({ id: result.insertId, name, username, email, role: role || 'sales_staff', active: 1, admin_modules: parseModules(admin_modules).join(',') })
+    res.status(201).json({ id: result.insertId, name, username, email, role: role || 'sales_staff', active: 1, admin_modules: parseModules(admin_modules).join(','), allow_manual_price: allow_manual_price ? 1 : 0 })
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'Username already exists, choose a different one' })
@@ -63,7 +140,7 @@ router.post('/users', async (req, res) => {
 
 router.put('/users/:id', async (req, res) => {
   try {
-    const { name, username, email, password, role, active, admin_modules } = req.body
+    const { name, username, email, password, role, active, admin_modules, allow_manual_price } = req.body
     const user = await queryOne('SELECT * FROM users WHERE id = ?', [req.params.id])
     if (!user) return res.status(404).json({ error: 'User not found' })
 
@@ -75,6 +152,7 @@ router.put('/users/:id', async (req, res) => {
     if (role !== undefined) { updates.push('role=?'); params.push(role) }
     if (active !== undefined) { updates.push('active=?'); params.push(active ? 1 : 0) }
     if (admin_modules !== undefined) { updates.push('admin_modules=?'); params.push(parseModules(admin_modules).join(',')) }
+    if (allow_manual_price !== undefined) { updates.push('allow_manual_price=?'); params.push(allow_manual_price ? 1 : 0) }
     if (password) {
       updates.push('password=?')
       params.push(bcrypt.hashSync(password, 10))
@@ -83,7 +161,7 @@ router.put('/users/:id', async (req, res) => {
     params.push(req.params.id)
     await execute(`UPDATE users SET ${updates.join(', ')} WHERE id=?`, params)
     await logAudit(req, 'user.update', `Updated user ${name || user.name}${role !== undefined ? ` (role: ${role})` : ''}${admin_modules !== undefined ? ` (modules: ${parseModules(admin_modules).join(',') || 'none'})` : ''}`)
-    const updated = await queryOne('SELECT id, name, username, email, role, active, admin_modules FROM users WHERE id = ?', [req.params.id])
+    const updated = await queryOne('SELECT id, name, username, email, role, active, admin_modules, allow_manual_price FROM users WHERE id = ?', [req.params.id])
     res.json(updated)
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {

@@ -38,15 +38,33 @@ async function attachPrices(rows) {
   })
 }
 
-function validatePrices(prices, buyPrice) {
+function unitBuyCost(bp, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  if (bp <= 0) return 0
+  const ppd = Number(piecesPerDozen) || 12
+  const ppc = Number(piecesPerCarton) || 0
+  const dpc = Number(dozensPerCarton) || 0
+  const per = ppc > 0 ? ppc : dpc > 0 ? dpc * ppd : 0
+  if (unit === 'Carton') return bp
+  if (per > 0) {
+    const perPiece = bp / per
+    if (unit === 'Dozen') return perPiece * ppd
+    return perPiece
+  }
+  if (unit === 'Dozen') return bp * ppd
+  return bp
+}
+
+function validatePrices(prices, buyPrice, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const bp = Number(buyPrice) || 0
   const list = Array.isArray(prices) ? prices : []
   for (const p of list) {
     if (!UNITS.includes(p.unit)) return { error: `Invalid unit: ${p.unit}` }
+    const cost = unitBuyCost(bp, p.unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
     for (const col of PRICE_COLS) {
       const val = Number(p[col]) || 0
-      if (val > 0 && col === 'optional_price' && val < bp) {
-        return { error: `Optional price for ${p.unit} (TSh ${val.toLocaleString()}) must be greater than the buy price (TSh ${bp.toLocaleString()})` }
+      if (val > 0 && cost > 0 && val <= cost) {
+        const label = col === 'retail_price' ? 'Retail' : col === 'wholesale_price' ? 'Wholesale' : 'Optional'
+        return { error: `${label} price for ${p.unit} (TSh ${val.toLocaleString()}) must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})` }
       }
     }
   }
@@ -119,12 +137,11 @@ router.post('/', async (req, res) => {
 
     const bp = Number(buy_price || 0) || 0
     const normPrices = prices ? normalizePrices(!Array.isArray(prices) ? [prices] : prices) : []
-    const check = validatePrices(normPrices, bp)
-    if (check.error) return res.status(400).json({ error: check.error })
-
     const ppc = normalizePack(pieces_per_carton)
     const dpc = normalizePack(dozens_per_carton)
     const ppd = normalizeDozen(pieces_per_dozen)
+    const check = validatePrices(normPrices, bp, ppc, dpc, ppd)
+    if (check.error) return res.status(400).json({ error: check.error })
 
     const result = await execute(
       'INSERT INTO products (name, category, stock, min_stock, unit, active, buy_price, pieces_per_carton, dozens_per_carton, pieces_per_dozen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -165,8 +182,11 @@ router.put('/:id', async (req, res) => {
 
     if (prices !== undefined) {
       const bp = buy_price !== undefined ? (Number(buy_price) || 0) : (Number(existing.buy_price) || 0)
+      const effPpc = pieces_per_carton !== undefined ? normalizePack(pieces_per_carton) : normalizePack(existing.pieces_per_carton)
+      const effDpc = dozens_per_carton !== undefined ? normalizePack(dozens_per_carton) : normalizePack(existing.dozens_per_carton)
+      const effPpd = pieces_per_dozen !== undefined ? normalizeDozen(pieces_per_dozen) : normalizeDozen(existing.pieces_per_dozen)
       const normPrices = normalizePrices(!Array.isArray(prices) ? [prices] : prices)
-      const check = validatePrices(normPrices, bp)
+      const check = validatePrices(normPrices, bp, effPpc, effDpc, effPpd)
       if (check.error) return res.status(400).json({ error: check.error })
       await savePrices(req.params.id, normPrices)
     }

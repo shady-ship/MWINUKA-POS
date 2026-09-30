@@ -14,6 +14,7 @@ export default function AdminUsers() {
   const [error, setError] = useState('')
   const [accessUser, setAccessUser] = useState(null)
   const [accessForm, setAccessForm] = useState(new Set())
+  const [allowManual, setAllowManual] = useState(false)
   const [accessError, setAccessError] = useState('')
   const [accessSaving, setAccessSaving] = useState(false)
 
@@ -59,6 +60,7 @@ export default function AdminUsers() {
   const openAccess = (u) => {
     setAccessUser(u)
     setAccessForm(new Set(modulesOf(u)))
+    setAllowManual(Number(u.allow_manual_price) === 1)
     setAccessError('')
     setAccessSaving(false)
   }
@@ -67,7 +69,7 @@ export default function AdminUsers() {
     setAccessSaving(true)
     setAccessError('')
     try {
-      await updateUser(accessUser.id, { admin_modules: [...accessForm].join(',') })
+      await updateUser(accessUser.id, { admin_modules: [...accessForm].join(','), allow_manual_price: allowManual ? 1 : 0 })
       setAccessUser(null)
     } catch (err) {
       setAccessError(err.message || 'Failed to update access')
@@ -138,6 +140,9 @@ export default function AdminUsers() {
                       <span key={key} className="inline-block px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[9px] font-semibold">{MODULE_LABELS[key] || key}</span>
                     ))}
                     {modulesOf(u).length === 0 && <span className="text-[10px] text-muted">None</span>}
+                    {Number(u.allow_manual_price) === 1 && (
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-warning/10 text-warning text-[9px] font-semibold">Price Writing</span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -234,6 +239,12 @@ export default function AdminUsers() {
               </div>
               <button onClick={() => setAccessUser(null)} className="text-muted hover:text-heading"><X className="w-4 h-4" /></button>
             </div>
+            <p className="text-xs font-semibold text-heading mb-1.5">Write Custom Price on Orders</p>
+            <label className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 cursor-pointer mb-4">
+              <span className="text-xs font-medium text-heading">Allow {accessUser?.name} to manually set the selling price (Optional) on orders</span>
+              <input type="checkbox" checked={allowManual} onChange={e => setAllowManual(e.target.checked)} className="accent-primary" />
+            </label>
+            <p className="text-xs font-semibold text-heading mb-1.5">Admin Module Access</p>
             <div className="space-y-1.5 mb-4">
               {ADMIN_MODULES.map(m => (
                 <label key={m.key} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 cursor-pointer">

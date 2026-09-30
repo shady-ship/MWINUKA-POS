@@ -4,7 +4,7 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, Package } from 'luc
 import { useApp } from '../context/useApp'
 import { useAuth } from '../context/AuthContext'
 import InvoicePrint from '../components/InvoicePrint'
-import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts } from '../constants'
+import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost } from '../constants'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
@@ -25,6 +25,8 @@ export default function CreateOrderPage() {
   const [splitValues, setSplitValues] = useState({})
 
   const isAdmin = user?.role === 'admin'
+  const currentMe = usersList.find(u => Number(u.id) === Number(user?.id))
+  const canManualPrice = isAdmin || Number(currentMe?.allow_manual_price ?? user?.allow_manual_price) === 1
   const staffList = usersList.filter(u => u.role !== 'admin' && u.active !== 0)
   const selectedSalesman = usersList.find(u => Number(u.id) === Number(salesmanId))
 
@@ -32,13 +34,39 @@ export default function CreateOrderPage() {
     p.active !== 0 && p.name.toLowerCase().includes(search.toLowerCase())
   )
 
-  const checkOptionalPrice = (lineId) => {
-    setOptionalWarnings(prev => { const next = { ...prev }; delete next[lineId]; return next })
+  const checkOptionalPrice = (lineId, typedValue) => {
+    setOptionalWarnings(prev => {
+      const next = { ...prev }
+      const item = cart.find(i => i.lineId === lineId)
+      const cost = item ? unitBuyCost(item.buy_price, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton, item.pieces_per_dozen) : 0
+      const sp = Number(typedValue) || 0
+      if (cost > 0 && sp > 0 && sp <= cost) {
+        next[lineId] = `Selling price must be > buy price (TSh ${cost.toLocaleString()})!`
+      } else {
+        delete next[lineId]
+      }
+      return next
+    })
   }
 
   const handlePlaceOrder = async () => {
     if (!customerName.trim()) return alert('Please enter customer name')
     if (cart.length === 0) return alert('Please add items to the order')
+    if (!canManualPrice && cart.some(i => i.selectedPriceType === 'Optional')) {
+      return alert('You need permission from the admin to write custom prices on orders. Please ask your supervisor to grant you price-writing access.')
+    }
+    const unsetOptional = cart.find(i => i.selectedPriceType === 'Optional' && (Number(i.selectedPrice) || 0) <= 0)
+    if (unsetOptional) {
+      return alert(`Please enter the Optional price for ${unsetOptional.name} (${unsetOptional.selectedUnit}) before placing the order.`)
+    }
+    const belowBuy = cart.find(i => {
+      const cost = unitBuyCost(i.buy_price, i.selectedUnit, i.pieces_per_carton, i.dozens_per_carton, i.pieces_per_dozen)
+      const sp = Number(i.selectedPrice) || 0
+      return cost > 0 && sp > 0 && sp <= cost
+    })
+    if (belowBuy) {
+      return alert(`Selling price TSh ${Number(belowBuy.selectedPrice).toLocaleString()} for ${belowBuy.name} (${belowBuy.selectedUnit}) must be greater than the buy price (TSh ${unitBuyCost(belowBuy.buy_price, belowBuy.selectedUnit, belowBuy.pieces_per_carton, belowBuy.dozens_per_carton, belowBuy.pieces_per_dozen).toLocaleString()}).`)
+    }
     const neededByProduct = {}
     for (const item of cart) {
       const pieces = piecesForQty(item.quantity, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton, item.pieces_per_dozen)
@@ -221,14 +249,20 @@ export default function CreateOrderPage() {
                           <td className="px-3 py-3 text-center">
                             <select value={item.selectedPriceType} onChange={e => updateCartPriceType(item.lineId, e.target.value)}
                               className="px-2 py-1 rounded border border-line text-xs focus:outline-none focus:ring-1 focus:ring-accent">
-                              {getAvailableTypes(item.prices, item.selectedUnit).map(t => <option key={t} value={t}>{t}</option>)}
+                              {(() => {
+                                const base = getAvailableTypes(item.prices, item.selectedUnit).filter(t => t !== 'Optional')
+                                if (base.length === 0) return null
+                                const types = canManualPrice ? (base.includes('Optional') ? base : [...base, 'Optional']) : base
+                                return types.map(t => <option key={t} value={t}>{t}</option>)
+                              })()}
                             </select>
                           </td>
                           <td className="px-3 py-3 text-right">
                             {isOptional ? (
                               <div className="flex flex-col items-end">
-                                <input type="number" min="0" value={item.manualOverride ?? ''} placeholder={(item.prices?.find(p => p.unit === item.selectedUnit)?.optional_price ?? 0).toLocaleString()}
-                                  onChange={e => { updateCartPrice(item.lineId, e.target.value); checkOptionalPrice(item.lineId) }}
+                                <input type="number" min="0" value={item.manualOverride ?? ''}
+                                  placeholder={(() => { const op = Number(item.prices?.find(p => p.unit === item.selectedUnit)?.optional_price) || 0; return op > 0 ? op.toLocaleString() : 'Enter price' })()}
+                                  onChange={e => { updateCartPrice(item.lineId, e.target.value); checkOptionalPrice(item.lineId, e.target.value) }}
                                   className="w-28 px-2 py-1 rounded border border-red-200 text-xs text-right focus:outline-none focus:ring-2 focus:ring-accent" />
                                 {optionalWarnings[item.lineId] && <span className="text-[9px] text-danger mt-0.5">{optionalWarnings[item.lineId]}</span>}
                               </div>
@@ -241,7 +275,17 @@ export default function CreateOrderPage() {
                               <button onClick={() => updateCartQuantity(item.lineId, item.quantity - 1)} className="w-7 h-7 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors">
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={e => {
+                                  const v = e.target.value
+                                  if (v !== '' && Number(v) > 0) updateCartQuantity(item.lineId, Number(v))
+                                }}
+                                onBlur={e => updateCartQuantity(item.lineId, Number(e.target.value) || 1)}
+                                className="w-14 px-1 py-1 text-center text-sm font-semibold border border-line rounded focus:outline-none focus:ring-1 focus:ring-accent"
+                              />
                               <button onClick={() => updateCartQuantity(item.lineId, item.quantity + 1)} className="w-7 h-7 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors">
                                 <Plus className="w-3 h-3" />
                               </button>

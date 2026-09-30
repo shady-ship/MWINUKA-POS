@@ -127,6 +127,21 @@ const seed = async () => {
     )
   `)
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NULL,
+      device_label VARCHAR(255),
+      browser VARCHAR(100),
+      os VARCHAR(100),
+      ip VARCHAR(50),
+      login_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+      logout_at DATETIME NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `)
+
   const soldOut = await pool.execute(`SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'price'`)
   const hasOldPrice = soldOut[0][0].count > 0
   if (hasOldPrice) {
@@ -150,6 +165,7 @@ const seed = async () => {
   await ensureColumn(pool, 'users', 'username', 'VARCHAR(100) UNIQUE')
   await ensureColumn(pool, 'users', 'active', 'TINYINT(1) DEFAULT 1')
   await ensureColumn(pool, 'users', 'admin_modules', 'VARCHAR(500) DEFAULT NULL')
+  await ensureColumn(pool, 'users', 'allow_manual_price', 'TINYINT(1) DEFAULT 0')
   await ensureColumn(pool, 'order_items', 'price_type', "VARCHAR(50) DEFAULT 'Retail'")
   await ensureColumn(pool, 'order_items', 'paid', 'TINYINT(1) DEFAULT 0')
 

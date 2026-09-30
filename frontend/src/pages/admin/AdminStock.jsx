@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Search, AlertTriangle, Package, Edit, X, Plus, Trash2 } from 'lucide-react'
+import { Search, AlertTriangle, Package, Edit, X, Plus, Trash2, Download, FileText } from 'lucide-react'
 import { useApp } from '../../context/useApp'
 import { formatPackBreakdown, packPerCarton, piecesForQty, stockPack } from '../../constants'
+import { exportObjectRows, stockExportRows } from '../../utils/exportStock'
+import StockReportPrint from '../../components/StockReportPrint'
 
 export default function AdminStock() {
   const { products, updateProduct, deleteProduct } = useApp()
@@ -13,6 +15,8 @@ export default function AdminStock() {
   const [adjUnit, setAdjUnit] = useState('Piece')
   const [deleteId, setDeleteId] = useState(null)
   const [editMinStock, setEditMinStock] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [printReport, setPrintReport] = useState(false)
 
   const filtered = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
@@ -75,6 +79,33 @@ export default function AdminStock() {
           {['All', 'In Stock', 'Low Stock', 'Out of Stock'].map(f => (
             <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${filter === f ? 'bg-primary text-white' : 'bg-white text-heading border border-line hover:bg-gray-50'}`}>{f}</button>
           ))}
+        </div>
+        <div className="ml-auto relative">
+          <button
+            onClick={() => setExportOpen(o => !o)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-dark transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+          {exportOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-line overflow-hidden z-20">
+              <button
+                onClick={() => { setExportOpen(false); setPrintReport(true) }}
+                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-heading hover:bg-gray-50 flex items-center gap-2"
+              >
+                <FileText className="w-3.5 h-3.5 text-danger" /> Export PDF
+              </button>
+              <button
+                onClick={() => { setExportOpen(false); exportObjectRows(stockExportRows(filtered, {
+                  stockPack,
+                  statusOf: p => Number(p.stock) === 0 ? 'Out of Stock' : (Number(p.stock) <= (p.min_stock || 20) ? 'Below Min Stock' : 'In Stock'),
+                }), 'stock-admin') }}
+                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-heading hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5 text-success" /> Export Excel (CSV)
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -175,7 +206,6 @@ export default function AdminStock() {
                 <label className="block text-xs font-semibold text-heading mb-1">Quantity ({adjUnit === 'Carton' ? 'cartons' : adjUnit === 'Dozen' ? 'dozens' : 'pieces'})*</label>
                 <input value={adjQty} onChange={e => setAdjQty(e.target.value)} type="number" min="1" placeholder="Enter quantity"
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-                {adjQty > 0 && <p className="text-[10px] text-muted mt-0.5">= {piecesForQty(Number(adjQty), adjUnit, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)} pieces</p>}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-heading mb-1">Minimum Stock Alert Level</label>
@@ -207,6 +237,14 @@ export default function AdminStock() {
             </div>
           </div>
         </div>
+      )}
+
+      {printReport && (
+        <StockReportPrint
+          products={filtered}
+          title="Stock Report"
+          onClose={() => setPrintReport(false)}
+        />
       )}
     </div>
   )

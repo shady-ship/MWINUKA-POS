@@ -14,8 +14,8 @@ export default function AdminDashboard() {
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const todayOrders = ordersList.filter(o => (o.order_date || '').slice(0, 10) === todayStr)
-  const todaySales = todayOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
-  const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+  const todaySales = todayOrders.reduce((sum, o) => sum + (Number(o.paid_total) || 0), 0)
+  const totalRevenue = ordersList.reduce((sum, o) => sum + (Number(o.paid_total) || 0), 0)
   const totalOrders = ordersList.length
 
   const stats = [

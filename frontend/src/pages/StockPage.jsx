@@ -1,12 +1,16 @@
 import { useState } from 'react'
-import { Search, AlertTriangle } from 'lucide-react'
+import { Search, AlertTriangle, Download, FileText } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { stockPack } from '../constants'
+import { exportObjectRows, stockExportRows } from '../utils/exportStock'
+import StockReportPrint from '../components/StockReportPrint'
 
 export default function StockPage() {
   const { products } = useApp()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [printReport, setPrintReport] = useState(false)
 
   const filtered = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
@@ -46,6 +50,30 @@ export default function StockPage() {
                 {f}
               </button>
             ))}
+          </div>
+          <div className="ml-auto relative">
+            <button
+              onClick={() => setExportOpen(o => !o)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-dark transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" /> Export
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-line overflow-hidden z-20">
+                <button
+                  onClick={() => { setExportOpen(false); setPrintReport(true) }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-semibold text-heading hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <FileText className="w-3.5 h-3.5 text-danger" /> Export PDF
+                </button>
+                <button
+                  onClick={() => { setExportOpen(false); exportObjectRows(stockExportRows(filtered, { stockPack }), 'stock') }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-semibold text-heading hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5 text-success" /> Export Excel (CSV)
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -104,6 +132,13 @@ export default function StockPage() {
             </tbody>
           </table>
         </div>
+      {printReport && (
+          <StockReportPrint
+            products={filtered}
+            title="Stock Check Report"
+            onClose={() => setPrintReport(false)}
+          />
+        )}
       </div>
     </div>
   )
