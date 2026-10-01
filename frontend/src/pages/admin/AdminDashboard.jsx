@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { BarChart3, TrendingUp, AlertTriangle, ShoppingCart, Package, DollarSign, Clock, Users } from 'lucide-react'
 import { useApp } from '../../context/useApp'
+import { unitCode } from '../../constants'
 
 export default function AdminDashboard() {
   const { products, ordersList } = useApp()
@@ -102,7 +103,7 @@ export default function AdminDashboard() {
                         if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
                         if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
                         if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-                        return `${x.unit} ${parts.join('|') || '—'}`
+                        return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
                       }).join('  •  ') || '—'}
                     </td>
                     <td className="py-2.5 text-xs font-semibold text-heading text-right">{p.stock}</td>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Eye, Trash2, X, CheckCircle, Printer, Calendar } from 'lucide-react'
 import { useApp } from '../../context/useApp'
 import InvoicePrint from '../../components/InvoicePrint'
+import { unitCode } from '../../constants'
 
 function localDate(d) {
   const y = d.getFullYear()
@@ -53,9 +54,6 @@ export default function AdminOrders() {
       ? String(b.order_date).localeCompare(String(a.order_date))
       : String(a.order_date).localeCompare(String(b.order_date))
   )
-  const totalSales = filtered.reduce((s, o) => s + (Number(o.total) || 0), 0)
-  const rangeLabel = from && to ? `${from} to ${to}` : from ? `from ${from}` : to ? `until ${to}` : 'all time'
-
   const rangeOrders = ordersList.filter(inRange)
   const countStatus = (s) => rangeOrders.filter(o => o.status === s).length
   const chips = [
@@ -65,19 +63,9 @@ export default function AdminOrders() {
     { key: 'Cancelled', label: 'Cancelled', count: countStatus('Cancelled') },
   ]
 
-  const sumItems = (arr) => arr.reduce((s, o) => s + (Number(o.item_count) || 0), 0)
-  const totalItems = sumItems(rangeOrders)
-  const billedItems = sumItems(rangeOrders.filter(o => o.status === 'Pending' || o.status === 'Completed'))
-  const paidItems = sumItems(rangeOrders.filter(o => o.status === 'Completed'))
-
-  const paidOrders = filtered.filter(o => o.status === 'Completed')
-  const billedOrders = filtered.filter(o => o.status === 'Pending')
-  const cancelledOrders = filtered.filter(o => o.status === 'Cancelled')
   const sumTotal = (arr) => arr.reduce((s, o) => s + (Number(o.total) || 0), 0)
   const billedTotal = sumTotal(filtered.filter(o => o.status !== 'Cancelled'))
   const paidTotal = filtered.reduce((s, o) => s + (Number(o.paid_total) || 0), 0)
-  const cancelledTotal = sumTotal(cancelledOrders)
-
   const reloadView = async (id) => {
     const res = await fetch(`/api/orders/${id}`)
     const data = await res.json()
@@ -271,7 +259,7 @@ export default function AdminOrders() {
                       <tr key={item.id} className={`border-b border-line ${checked ? 'bg-green-50' : ''}`}>
                         <td className="px-3 py-2 text-xs text-heading">{item.product_name || `Product #${item.product_id}`}</td>
                         <td className="px-3 py-2 text-xs text-heading text-center">{item.quantity}</td>
-                        <td className="px-3 py-2 text-xs text-heading text-center">{item.unit}</td>
+                        <td className="px-3 py-2 text-xs text-heading text-center">{unitCode(item.unit)}</td>
                         <td className="px-3 py-2 text-xs font-semibold text-heading text-right">TSh {Number(item.total).toLocaleString()}</td>
                         <td className="px-3 py-2 text-center">
                           <input

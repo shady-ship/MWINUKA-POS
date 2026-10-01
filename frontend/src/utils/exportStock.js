@@ -1,3 +1,5 @@
+import { unitCode } from '../constants'
+
 export function exportObjectRows(rows, baseName) {
   const header = Object.keys(rows[0] || {})
   const lines = [header.join(',')]
@@ -30,7 +32,7 @@ export function stockExportRows(products, { stockPack, statusOf, minOf } = {}) {
         if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
         if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
         if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-        return `${x.unit} ${parts.join('|') || '—'}`
+        return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
       })
       .join(' | ') || '—'
     return {

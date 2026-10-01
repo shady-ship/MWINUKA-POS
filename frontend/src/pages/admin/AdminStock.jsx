@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { Search, AlertTriangle, Package, Edit, X, Plus, Trash2, Download, FileText } from 'lucide-react'
+import { Search, AlertTriangle, Package, Edit, X, Trash2, Download, FileText } from 'lucide-react'
 import { useApp } from '../../context/useApp'
 import { formatPackBreakdown, packPerCarton, piecesForQty, stockPack, unitCode, unitUnusableReason } from '../../constants'
 import { exportObjectRows, stockExportRows } from '../../utils/exportStock'
 import StockReportPrint from '../../components/StockReportPrint'
 
 const ADJ_UNITS = [
-  { value: 'HalfDozen', label: 'Half Dozen' },
+  { value: 'HalfDozen', label: '1/2 Dozen' },
   { value: 'Dozen', label: 'Dozen' },
-  { value: 'HalfCarton', label: 'Half Carton' },
+  { value: 'HalfCarton', label: '1/2 Carton' },
   { value: 'Carton', label: 'Carton' },
 ]
 
@@ -148,7 +148,7 @@ export default function AdminStock() {
                       if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
                       if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
                       if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-                      return `${x.unit} ${parts.join('|') || '—'}`
+                      return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </td>
                   <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasCarton ? bd.cartons : '—'}</td>

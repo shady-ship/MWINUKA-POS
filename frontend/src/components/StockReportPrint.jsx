@@ -1,5 +1,5 @@
 import { useApp } from '../context/useApp'
-import { stockPack } from '../constants'
+import { stockPack, unitCode } from '../constants'
 
 export default function StockReportPrint({ products, title, onClose }) {
   const { settings } = useApp()
@@ -16,7 +16,7 @@ export default function StockReportPrint({ products, title, onClose }) {
         if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
         if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
         if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-        return `${x.unit} ${parts.join('|') || '—'}`
+        return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
       })
       .join(' • ') || '—'
     return { i: i + 1, ...p, bd, st, min, status, prices }
@@ -37,8 +37,8 @@ export default function StockReportPrint({ products, title, onClose }) {
 
       <div className="print-area">
         <div className="report">
-          <div className="invoice-header">
-            <div className="invoice-logo">
+          <div className="report-header">
+            <div className="report-logo">
               <svg viewBox="0 0 512 512" width="34" height="34">
                 <defs>
                   <linearGradient id="lgBg" x1="0" y1="0" x2="1" y2="1">
@@ -60,27 +60,30 @@ export default function StockReportPrint({ products, title, onClose }) {
                 <rect x="120" y="426" width="272" height="10" rx="5" fill="url(#lgGold)"/>
               </svg>
             </div>
-            <h1 className="invoice-company">{(settings.business_name || 'Mwinuka Enterprises Co Ltd').toUpperCase()}</h1>
-            {settings.tagline && <p className="invoice-tagline">{settings.tagline}</p>}
-            {settings.address && <p className="invoice-address">{settings.address}</p>}
-            {settings.phone && <p className="invoice-phone">Tel: {settings.phone}</p>}
-            {settings.email && <p className="invoice-phone">Email: {settings.email}</p>}
-          </div>
-
-          <hr className="invoice-divider" />
-
-          <h2 className="invoice-title">{title.toUpperCase()}</h2>
-
-          <div className="invoice-info">
-            <div className="invoice-info-left">
-              <p><span className="invoice-label">Generated</span> : {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-            </div>
-            <div className="invoice-info-right">
-              <p><span className="invoice-label">Products</span> : {rows.length}</p>
+            <div className="report-business">
+              <h1 className="report-company">{(settings.business_name || 'Mwinuka Enterprises Co Ltd').toUpperCase()}</h1>
+              {settings.tagline && <p className="report-tagline">{settings.tagline}</p>}
+              {settings.address && <p className="report-contact">{settings.address}</p>}
+              {(settings.phone || settings.email) && (
+                <p className="report-contact">
+                  {settings.phone && `Tel: ${settings.phone}`}
+                  {settings.phone && settings.email && ' | '}
+                  {settings.email && `Email: ${settings.email}`}
+                </p>
+              )}
             </div>
           </div>
 
-          <hr className="invoice-divider" />
+          <hr className="report-divider" />
+
+          <h2 className="report-title">{title.toUpperCase()}</h2>
+
+          <div className="report-info">
+            <p><span className="report-label">Generated:</span> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+            <p><span className="report-label">Products:</span> {rows.length}</p>
+          </div>
+
+          <hr className="report-divider" />
 
           <table className="report-table">
             <thead>
@@ -113,7 +116,7 @@ export default function StockReportPrint({ products, title, onClose }) {
             </tbody>
           </table>
 
-          <hr className="invoice-divider" />
+          <hr className="report-divider" />
 
           <div className="invoice-footer">
             {settings.receipt_thankyou_en && <p className="invoice-thankyou-en">{settings.receipt_thankyou_en}</p>}

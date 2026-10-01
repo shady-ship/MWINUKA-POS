@@ -1,8 +1,22 @@
 import { useApp } from '../context/useApp'
-
-const UNIT_ABBR = { Piece: 'pc', HalfDozen: 'hdzn', Dozen: 'dzn', HalfCarton: 'hcrtn', Carton: 'ctn' }
+import { unitCode } from '../constants'
 
 const money = (n) => Number(n || 0).toLocaleString()
+
+function invoiceQuantity(quantity, unit) {
+  if (unit !== 'HalfDozen' && unit !== 'HalfCarton') {
+    return { quantity: String(quantity), unit: unitCode(unit) }
+  }
+
+  const halfPacks = Number(quantity) || 0
+  const wholePacks = Math.floor(halfPacks / 2)
+  const hasHalfPack = halfPacks % 2 !== 0
+  const amount = hasHalfPack
+    ? wholePacks > 0 ? `${wholePacks} 1/2` : '1/2'
+    : String(wholePacks)
+
+  return { quantity: amount, unit: unit === 'HalfDozen' ? 'dzn' : 'crtn' }
+}
 
 export default function InvoicePrint({ order, items, onClose }) {
   const { settings } = useApp()
@@ -15,12 +29,6 @@ export default function InvoicePrint({ order, items, onClose }) {
   const subtotal = items.reduce((sum, i) => sum + lineTotal(i), 0)
   const total = Number(order.total) || subtotal
   const discount = subtotal - total
-
-  const hasPaidFlags = items.some(i => i.paid !== undefined && i.paid !== null)
-  const paid = hasPaidFlags
-    ? items.filter(i => Number(i.paid) === 1).reduce((sum, i) => sum + lineTotal(i), 0)
-    : Number(order.paid_total || 0)
-  const balance = Math.max(0, total - paid)
 
   const contact = [settings.address, settings.phone ? `Tel: ${settings.phone}` : null, settings.email].filter(Boolean)
 
@@ -71,8 +79,8 @@ export default function InvoicePrint({ order, items, onClose }) {
                 <tr key={i} className="inv-item">
                   <td className="inv-c-desc">{item.product_name}</td>
                   <td className="inv-c-qty">
-                    <span className="inv-qty-num">{item.quantity}</span>
-                    <span className="inv-qty-unit">{UNIT_ABBR[item.unit] || item.unit}</span>
+                    <span className="inv-qty-num">{invoiceQuantity(item.quantity, item.unit).quantity}</span>
+                    <span className="inv-qty-unit">{invoiceQuantity(item.quantity, item.unit).unit}</span>
                   </td>
                   <td className="inv-c-price">{money(item.unit_price)}</td>
                   <td className="inv-c-total">{money(lineTotal(item))}</td>
@@ -88,9 +96,6 @@ export default function InvoicePrint({ order, items, onClose }) {
               <span>Total</span>
               <span>{cur} {money(total)}</span>
             </div>
-            {balance > 0 && (
-              <div className="inv-due"><span>AMOUNT DUE</span><span>{cur} {money(balance)}</span></div>
-            )}
           </div>
 
           <footer className="inv-foot">

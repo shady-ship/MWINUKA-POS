@@ -4,12 +4,12 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, Package } from 'luc
 import { useApp } from '../context/useApp'
 import { useAuth } from '../context/AuthContext'
 import InvoicePrint from '../components/InvoicePrint'
-import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost } from '../constants'
+import { piecesForQty, formatPackBreakdown, stockParts, unitBuyCost, unitCode } from '../constants'
 
 export default function CreateOrderPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, setCartItemAltName, setAllCartAltName, removeFromCart, clearCart, placeOrder, cartTotal, products, usersList, getAvailableTypes } = useApp()
+  const { cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, setCartItemAltName, removeFromCart, clearCart, placeOrder, cartTotal, products, usersList, getAvailableTypes } = useApp()
   const [customerName, setCustomerName] = useState('')
   const [salesmanId, setSalesmanId] = useState(user?.id || '')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
@@ -28,8 +28,6 @@ export default function CreateOrderPage() {
   const currentMe = usersList.find(u => Number(u.id) === Number(user?.id))
   const canManualPrice = isAdmin || Number(currentMe?.allow_manual_price ?? user?.allow_manual_price) === 1
   const staffList = usersList.filter(u => u.role !== 'admin' && u.active !== 0)
-  const selectedSalesman = usersList.find(u => Number(u.id) === Number(salesmanId))
-
   const filteredProducts = products.filter(p =>
     p.active !== 0 && p.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -186,7 +184,7 @@ export default function CreateOrderPage() {
                             if (x.retail_price != null) parts.push(`R ${Number(x.retail_price).toLocaleString()}`)
                             if (x.wholesale_price != null) parts.push(`W ${Number(x.wholesale_price).toLocaleString()}`)
                             if (x.optional_price != null) parts.push(`O ${Number(x.optional_price).toLocaleString()}`)
-                            return `${x.unit}: ${parts.join(' | ')}`
+                            return `${unitCode(x.unit)}: ${parts.join(' | ')}`
                           }).join(' • ')}
                         </p>
                         <p className="text-[10px] text-muted">
@@ -252,7 +250,7 @@ export default function CreateOrderPage() {
                           <td className="px-3 py-3 text-center">
                             <select value={item.selectedUnit} onChange={e => updateCartItemUnit(item.lineId, e.target.value)}
                               className="px-2 py-1 rounded border border-line text-xs focus:outline-none focus:ring-1 focus:ring-accent">
-                              {(item.prices || []).filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(p => <option key={p.unit} value={p.unit}>{p.unit}</option>)}
+                              {(item.prices || []).filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(p => <option key={p.unit} value={p.unit}>{unitCode(p.unit)}</option>)}
                             </select>
                           </td>
                           <td className="px-3 py-3 text-center">

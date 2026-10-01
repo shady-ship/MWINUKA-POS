@@ -18,6 +18,14 @@ function unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   return 0
 }
 
+function unitBuyCost(buyPrice, baseUnit, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const bp = Number(buyPrice) || 0
+  const perBase = unitPieces(baseUnit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  const perTarget = unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  if (bp <= 0 || perBase <= 0 || perTarget <= 0) return 0
+  return (bp / perBase) * perTarget
+}
+
 function unitUnusableReason(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const ppd = Number(piecesPerDozen) || 0
   const ppc = Number(piecesPerCarton) || 0
@@ -282,16 +290,42 @@ router.put('/:id/items', adminOnly, async (req, res) => {
       oldByProduct[it.product_id] = (oldByProduct[it.product_id] || 0) + pieces
     }
 
+    const itemPids = [...new Set(items.map(item => Number(item.product_id)).filter(pid => Number.isInteger(pid) && pid > 0))]
+    const itemProducts = itemPids.length
+      ? await query(
+        `SELECT id, name, buy_price, buy_price_unit, pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id IN (${itemPids.map(() => '?').join(',')})`,
+        itemPids
+      )
+      : []
+    const itemProductById = Object.fromEntries(itemProducts.map(product => [Number(product.id), product]))
+
     const newByProduct = {}
     let total = 0
     for (const item of items) {
       const pid = Number(item.product_id)
       const qty = Number(item.quantity) || 0
       if (!pid || qty < 1) return res.status(400).json({ error: 'Each item needs a product and a quantity of at least 1' })
+      const product = itemProductById[pid]
+      if (!product) return res.status(400).json({ error: 'Product not found' })
       const unit = item.unit || 'Piece'
+      const price = Number(item.price)
+      if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Item price must be zero or more' })
+      const cost = unitBuyCost(
+        product.buy_price,
+        product.buy_price_unit || 'Piece',
+        unit,
+        product.pieces_per_carton,
+        product.dozens_per_carton,
+        product.pieces_per_dozen
+      )
+      if (cost > 0 && price <= cost) {
+        return res.status(400).json({
+          error: `Price for ${product.name} (${unit}) must be greater than its buy price for that unit (TSh ${cost.toLocaleString()})`,
+        })
+      }
       const pieces = await piecesFor(pid, qty, unit)
       newByProduct[pid] = (newByProduct[pid] || 0) + pieces
-      total += (Number(item.price) || 0) * qty
+      total += price * qty
     }
 
     const allProductIds = [...new Set([...Object.keys(oldByProduct), ...Object.keys(newByProduct)])]

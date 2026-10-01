@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
       session = auth
       setUser({ ...data.user, token: data.token, sessionId: data.session_id })
       return { success: true, user: data.user }
-    } catch (err) {
+    } catch {
       return { success: false, error: 'Unable to connect to server' }
     }
   }

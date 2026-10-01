@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Eye, X, Calendar, Pencil, Trash2, Printer } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import InvoicePrint from '../components/InvoicePrint'
+import { unitBuyCost, unitCode } from '../constants'
 
 function localDate(d) {
   const y = d.getFullYear()
@@ -144,6 +145,19 @@ export default function OrdersPage() {
         setEditError('Each item needs a product and a quantity of at least 1')
         return
       }
+      const product = products.find(p => Number(p.id) === Number(it.pid))
+      const cost = product ? unitBuyCost(
+        product.buy_price,
+        product.buy_price_unit || 'Piece',
+        it.unit,
+        product.pieces_per_carton,
+        product.dozens_per_carton,
+        product.pieces_per_dozen
+      ) : 0
+      if (cost > 0 && Number(it.price) <= cost) {
+        setEditError(`Price for ${product.name} (${unitCode(it.unit)}) must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})`)
+        return
+      }
     }
     setEditSaving(true)
     const detailsOk = await updateOrder(editOrder.id, {
@@ -195,9 +209,6 @@ export default function OrdersPage() {
       ? String(b.order_date).localeCompare(String(a.order_date))
       : String(a.order_date).localeCompare(String(b.order_date))
   )
-  const totalSales = filtered.reduce((s, o) => s + (Number(o.total) || 0), 0)
-  const rangeLabel = from && to ? `${from} to ${to}` : from ? `from ${from}` : to ? `until ${to}` : 'all time'
-
   const rangeOrders = ordersList.filter(inRange)
   const countStatus = (s) => rangeOrders.filter(o => o.status === s).length
   const chips = [
@@ -207,19 +218,9 @@ export default function OrdersPage() {
     { key: 'Cancelled', label: 'Cancelled', count: countStatus('Cancelled') },
   ]
 
-  const sumItems = (arr) => arr.reduce((s, o) => s + (Number(o.item_count) || 0), 0)
-  const totalItems = sumItems(rangeOrders)
-  const billedItems = sumItems(rangeOrders.filter(o => o.status === 'Pending' || o.status === 'Completed'))
-  const paidItems = sumItems(rangeOrders.filter(o => o.status === 'Completed'))
-
-  const paidOrders = filtered.filter(o => o.status === 'Completed')
-  const billedOrders = filtered.filter(o => o.status === 'Pending')
-  const cancelledOrders = filtered.filter(o => o.status === 'Cancelled')
   const sumTotal = (arr) => arr.reduce((s, o) => s + (Number(o.total) || 0), 0)
   const billedTotal = sumTotal(filtered.filter(o => o.status !== 'Cancelled'))
   const paidTotal = filtered.reduce((s, o) => s + (Number(o.paid_total) || 0), 0)
-  const cancelledTotal = sumTotal(cancelledOrders)
-
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -385,7 +386,7 @@ export default function OrdersPage() {
                         <tr key={item.id} className={`border-b border-line ${checked ? 'bg-green-50' : ''}`}>
                           <td className="px-3 py-2 text-xs text-heading">{item.product_name || `Product #${item.product_id}`}</td>
                           <td className="px-3 py-2 text-xs text-heading text-center">{item.quantity}</td>
-                          <td className="px-3 py-2 text-xs text-heading text-center">{item.unit}</td>
+                          <td className="px-3 py-2 text-xs text-heading text-center">{unitCode(item.unit)}</td>
                           <td className="px-3 py-2 text-xs font-semibold text-heading text-right">TSh {Number(item.total).toLocaleString()}</td>
                           <td className="px-3 py-2 text-center">
                             <input
@@ -484,6 +485,15 @@ export default function OrdersPage() {
                   const prod = products.find(p => p.id === it.pid)
                   const units = unitsOf(prod)
                   const types = typesOf(prod, it.unit)
+                  const buyCost = prod ? unitBuyCost(
+                    prod.buy_price,
+                    prod.buy_price_unit || 'Piece',
+                    it.unit,
+                    prod.pieces_per_carton,
+                    prod.dozens_per_carton,
+                    prod.pieces_per_dozen
+                  ) : 0
+                  const priceBelowBuy = buyCost > 0 && Number(it.price) <= buyCost
                   return (
                     <div key={idx} className="rounded-lg border border-line p-2.5">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -521,10 +531,11 @@ export default function OrdersPage() {
                         </select>
                         <input type="number" min="0" value={it.price}
                           onChange={e => setEditItems(prev => prev.map((x, i) => i === idx ? { ...x, price: Number(e.target.value) || 0 } : x))}
-                          className="w-24 px-2 py-1.5 rounded border border-line text-xs text-right focus:outline-none focus:ring-1 focus:ring-accent" />
+                          className={`w-24 px-2 py-1.5 rounded border text-xs text-right focus:outline-none focus:ring-1 focus:ring-accent ${priceBelowBuy ? 'border-danger bg-red-50' : 'border-line'}`} />
                         <span className="text-xs font-bold text-accent min-w-[90px] text-right">TSh {((it.price || 0) * (it.qty || 0)).toLocaleString()}</span>
                         <button onClick={() => setEditItems(prev => prev.filter((_, i) => i !== idx))} className="text-danger hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
                       </div>
+                      {priceBelowBuy && <p className="mt-1 text-[10px] font-semibold text-danger">Unit price must be greater than buy cost (TSh {buyCost.toLocaleString()}).</p>}
                     </div>
                   )
                 })}

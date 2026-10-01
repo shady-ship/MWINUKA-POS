@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Package, Search, ShoppingCart, ClipboardList } from 'lucide-react'
 import { useApp } from '../context/useApp'
+import { unitCode } from '../constants'
 
 export default function HomePage() {
   const { products, ordersList } = useApp()
@@ -80,7 +81,7 @@ export default function HomePage() {
                       if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
                       if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
                       if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-                      return `${x.unit} ${parts.join('|') || '—'}`
+                      return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </p>
                   <p className={`text-xs mt-1 ${product.stock > 20 ? 'text-success' : product.stock > 0 ? 'text-warning' : 'text-danger'}`}>

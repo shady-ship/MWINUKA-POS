@@ -421,7 +421,7 @@ const updateOrderStatus = async (orderId, status) => {
       }
       await fetchOrders()
       return { ok: true, error: null }
-    } catch (err) {
+    } catch {
       return { ok: false, error: 'Cannot reach the server. Check that the backend is running.' }
     }
   }

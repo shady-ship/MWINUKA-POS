@@ -32,9 +32,9 @@ export const ALL_UNITS = ['Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton']
 
 const UNIT_CODES = {
   Piece: 'pc',
-  HalfDozen: 'hdzn',
+  HalfDozen: '1/2 dzn',
   Dozen: 'dzn',
-  HalfCarton: 'hcrtn',
+  HalfCarton: '1/2 crtn',
   Carton: 'crtn',
 }
 
@@ -143,7 +143,7 @@ export function stockParts(product) {
   const b = stockPack(product)
   const parts = []
   if (b.hasCarton && b.cartons > 0) parts.push(`${b.cartons} crtn`)
-  if (b.halfDozens > 0) parts.push(`${b.halfDozens} hdzn`)
+  if (b.halfDozens > 0) parts.push(`${b.halfDozens} x ${unitCode('HalfDozen')}`)
   if (b.hasDozen && b.dozens > 0) parts.push(`${b.dozens} dzn`)
   if (b.hasPiece && b.pieces > 0) parts.push(`${b.pieces} pc`)
   if (parts.length === 0) parts.push(`${b.total} pcs`)
@@ -170,9 +170,9 @@ const UNIT_HINTS = [
 
 export const STOCK_UNIT_OPTIONS = [
   { value: 'Piece', short: 'pc', label: 'Pieces (pc)' },
-  { value: 'HalfDozen', short: 'hdzn', label: 'Half Dozens (hdzn)' },
+  { value: 'HalfDozen', short: '1/2 dzn', label: '1/2 Dozen' },
   { value: 'Dozen', short: 'dzn', label: 'Dozens (dzn)' },
-  { value: 'HalfCarton', short: 'hcrtn', label: 'Half Cartons (hcrtn)' },
+  { value: 'HalfCarton', short: '1/2 crtn', label: '1/2 Carton' },
   { value: 'Carton', short: 'crtn', label: 'Cartons (crtn)' },
 ]
 

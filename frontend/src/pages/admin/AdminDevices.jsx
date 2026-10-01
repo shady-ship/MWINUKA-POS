@@ -63,7 +63,6 @@ export default function AdminDevices() {
       try {
         json = await res.json()
       } catch {
-        const text = await res.text().catch(() => '')
         setError(`Server returned HTML (status ${res.status}) instead of JSON. The backend likely wasn't restarted — stop it (Ctrl+C) then run: node server.js`)
         return
       }
@@ -71,7 +70,7 @@ export default function AdminDevices() {
         setError(json.error || 'Failed to sign out')
         return
       }
-    } catch (err) {
+    } catch {
       setError('Unable to reach the server. Is the backend running?')
       return
     }

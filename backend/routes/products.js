@@ -121,7 +121,7 @@ function normalizeDozen(value) {
 
 function normalizePrices(input) {
   if (!Array.isArray(input)) return []
-  return input
+  const prices = input
     .filter(p => p && UNITS.includes(p.unit))
     .map(p => ({
       unit: p.unit,
@@ -130,6 +130,17 @@ function normalizePrices(input) {
       optional_price: Number(p.optional_price) || null,
     }))
     .filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null)
+
+  for (const [halfUnit, fullUnit] of [['HalfDozen', 'Dozen'], ['HalfCarton', 'Carton']]) {
+    const half = prices.find(p => p.unit === halfUnit)
+    const full = prices.find(p => p.unit === fullUnit)
+    if (!half || !full) continue
+    for (const column of PRICE_COLS) {
+      if (half[column] == null && full[column] != null) half[column] = Number(full[column]) / 2
+    }
+  }
+
+  return prices
 }
 
 router.get('/', async (req, res) => {

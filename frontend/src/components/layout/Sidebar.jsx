@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart,
   ClipboardList, Users, UserPlus, BarChart3, Settings, LogOut,
-  Store, ShoppingBag, FileText, Boxes, History, MonitorSmartphone
+  ShoppingBag, FileText, Boxes, History, MonitorSmartphone
 } from 'lucide-react'
 import { useApp } from '../../context/useApp'
 import { useAuth } from '../../context/AuthContext'

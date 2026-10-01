@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, AlertTriangle, Download, FileText } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import { stockPack } from '../constants'
+import { stockPack, unitCode } from '../constants'
 import { exportObjectRows, stockExportRows } from '../utils/exportStock'
 import StockReportPrint from '../components/StockReportPrint'
 
@@ -105,7 +105,7 @@ export default function StockPage() {
                       if (x.retail_price != null) parts.push(`R${Number(x.retail_price).toLocaleString()}`)
                       if (x.wholesale_price != null) parts.push(`W${Number(x.wholesale_price).toLocaleString()}`)
                       if (x.optional_price != null) parts.push(`O${Number(x.optional_price).toLocaleString()}`)
-                      return `${x.unit} ${parts.join('|') || '—'}`
+                      return `${unitCode(x.unit)} ${parts.join('|') || '—'}`
                     }).join('  •  ') || '—'}
                   </td>
                   <td className="px-4 py-3 text-center text-sm font-bold text-heading">{bd.hasCarton ? bd.cartons : '—'}</td>

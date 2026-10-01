@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search, Plus } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import { stockParts } from '../constants'
+import { stockParts, unitCode } from '../constants'
 
 export default function ProductsPage() {
   const { products, addToCart, cart } = useApp()
@@ -51,7 +51,7 @@ export default function ProductsPage() {
                   if (x.optional_price != null) parts.push(`O ${Number(x.optional_price).toLocaleString()}`)
                   return (
                     <div key={x.unit} className="text-xs">
-                      <span className="font-semibold text-accent">{x.unit}:</span>{' '}
+                      <span className="font-semibold text-accent">{unitCode(x.unit)}:</span>{' '}
                       <span className="text-muted">{parts.length ? parts.join(' | ') : '—'}</span>
                     </div>
                   )

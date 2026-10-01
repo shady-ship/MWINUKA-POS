@@ -4,6 +4,8 @@ import { useApp } from '../../context/useApp'
 import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost, detectUnitFromName, stockUnitShort, STOCK_UNIT_OPTIONS, packSizeMissing, unitUnusableReason } from '../../constants'
 
 const UNIT_ROWS = ['Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton']
+const PRICE_FIELDS = ['retail', 'wholesale', 'optional']
+const HALF_UNITS = { HalfDozen: 'Dozen', HalfCarton: 'Carton' }
 
 const emptyPrices = () => UNIT_ROWS.map(unit => ({
   enabled: unit === 'Piece',
@@ -59,6 +61,22 @@ export default function AdminProducts() {
     return null
   }
 
+  const deriveHalfPrices = (prices, piecesPerCarton, dozensPerCarton, piecesPerDozen) => {
+    const next = prices.map(row => ({ ...row }))
+    for (const [halfUnit, fullUnit] of Object.entries(HALF_UNITS)) {
+      const halfIndex = next.findIndex(row => row.unit === halfUnit)
+      const full = next.find(row => row.unit === fullUnit)
+      if (halfIndex < 0 || !next[halfIndex].enabled || !full) continue
+      if (unitUnusableReason(halfUnit, piecesPerCarton, dozensPerCarton, piecesPerDozen)) continue
+      for (const field of PRICE_FIELDS) {
+        if (!Number(next[halfIndex][field]) && Number(full[field]) > 0) {
+          next[halfIndex][field] = String(Number(full[field]) / 2)
+        }
+      }
+    }
+    return next
+  }
+
   const openAdd = () => {
     setForm({ name: '', altName: '', category: '', stock: '', min_stock: '', buyPrice: '', piecesPerCarton: '', dozensPerCarton: '', piecesPerDozen: '', prices: emptyPrices() })
     setEditId(null)
@@ -80,6 +98,7 @@ export default function AdminProducts() {
         optional: found.optional_price != null ? String(found.optional_price) : '',
       }
     })
+    const pricesWithHalfDefaults = deriveHalfPrices(formPrices, p.pieces_per_carton, p.dozens_per_carton, p.pieces_per_dozen)
     setForm({
       name: p.name,
       altName: p.alt_name || '',
@@ -90,7 +109,7 @@ export default function AdminProducts() {
       piecesPerCarton: String(p.pieces_per_carton ?? ''),
       dozensPerCarton: String(p.dozens_per_carton ?? ''),
       piecesPerDozen: String(p.pieces_per_dozen ?? ''),
-      prices: formPrices,
+      prices: pricesWithHalfDefaults,
     })
     setEditId(p.id)
     setCountedIn(STOCK_UNIT_OPTIONS.some(o => o.value === p.buy_price_unit) ? p.buy_price_unit : 'Piece')
@@ -100,10 +119,33 @@ export default function AdminProducts() {
   }
 
   const setPrice = (idx, field, val) => {
-    setForm(prev => ({
-      ...prev,
-      prices: prev.prices.map((p, i) => i === idx ? { ...p, [field]: val } : p)
-    }))
+    setForm(prev => {
+      const prices = prev.prices.map((p, i) => i === idx ? { ...p, [field]: val } : p)
+      const edited = prev.prices[idx]
+      const fullToHalf = { Dozen: 'HalfDozen', Carton: 'HalfCarton' }
+
+      if (field === 'enabled' && val && HALF_UNITS[edited.unit]) {
+        return {
+          ...prev,
+          prices: deriveHalfPrices(prices, prev.piecesPerCarton, prev.dozensPerCarton, prev.piecesPerDozen),
+        }
+      }
+
+      const halfUnit = fullToHalf[edited.unit]
+      if (halfUnit && PRICE_FIELDS.includes(field)) {
+        const halfIndex = prices.findIndex(p => p.unit === halfUnit)
+        const previousHalfPrice = Number(prev.prices[halfIndex]?.[field]) || 0
+        const previousAutoPrice = (Number(edited[field]) || 0) / 2
+        if (prices[halfIndex]?.enabled && (!previousHalfPrice || previousHalfPrice === previousAutoPrice)) {
+          prices[halfIndex][field] = Number(val) > 0 ? String(Number(val) / 2) : ''
+        }
+      }
+
+      return {
+        ...prev,
+        prices: deriveHalfPrices(prices, prev.piecesPerCarton, prev.dozensPerCarton, prev.piecesPerDozen),
+      }
+    })
   }
 
   const buildData = () => {
@@ -153,7 +195,7 @@ export default function AdminProducts() {
             const packHint = packPerCarton(form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) === 0 && p.unit !== 'Piece'
               ? ' (Set Pieces/Dozens per Carton above so the per-carton cost can be worked out.)'
               : ''
-            setError(`${labelOf[f]} price for ${p.unit} (TSh ${val.toLocaleString()}) must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})${packHint}`)
+            setError(`${labelOf[f]} price for ${stockUnitShort(p.unit)} (TSh ${val.toLocaleString()}) must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})${packHint}`)
             return
           }
         }
@@ -199,7 +241,7 @@ export default function AdminProducts() {
           if (x.retail_price != null) parts.push(`R ${Number(x.retail_price).toLocaleString()}`)
           if (x.wholesale_price != null) parts.push(`W ${Number(x.wholesale_price).toLocaleString()}`)
           if (x.optional_price != null) parts.push(`O ${Number(x.optional_price).toLocaleString()}`)
-          return `${x.unit}: ${parts.join(' | ')}`
+          return `${stockUnitShort(x.unit)}: ${parts.join(' | ')}`
         }).join('  •  ')
       : <span className="text-muted">No prices</span>
 
@@ -362,7 +404,7 @@ export default function AdminProducts() {
                     <p className="text-[10px] text-danger font-semibold mt-0.5">You counted this product by Carton but no pack size is set. Enter Pieces per Carton or Dozens per Carton below so the cost per piece can be worked out.</p>
                   ) : Number(form.buyPrice) > 0 ? (
                     <p className="text-[10px] text-muted mt-0.5">
-                      TSh {Number(form.buyPrice).toLocaleString()} buys one {stockUnitShort(countedIn)} → Buy costs: {form.prices.filter(p => p.enabled).map(p => `${p.unit} TSh ${unitBuyCost(form.buyPrice, countedIn, p.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen).toLocaleString()}`).join(' • ')} — selling prices must be above each.
+                      TSh {Number(form.buyPrice).toLocaleString()} buys one {stockUnitShort(countedIn)} → Buy costs: {form.prices.filter(p => p.enabled).map(p => `${stockUnitShort(p.unit)} TSh ${unitBuyCost(form.buyPrice, countedIn, p.unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen).toLocaleString()}`).join(' • ')} — selling prices must be above each.
                     </p>
                   ) : null}
                 </div>
@@ -408,7 +450,7 @@ export default function AdminProducts() {
                     >
                       <label className="flex items-center gap-2 w-32 cursor-pointer" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={row.enabled} onChange={e => setPrice(idx, 'enabled', e.target.checked)} className="accent-primary" />
-                        <span className={`text-xs font-semibold ${row.enabled ? 'text-heading' : 'text-muted line-through'}`}>{row.unit}</span>
+                        <span className={`text-xs font-semibold ${row.enabled ? 'text-heading' : 'text-muted line-through'}`}>{stockUnitShort(row.unit)}</span>
                         {!row.enabled && <span className="text-[9px] font-bold text-muted bg-white px-1.5 py-0.5 rounded-full border border-line">OFF</span>}
                       </label>
                       {row.enabled ? (
@@ -435,8 +477,8 @@ export default function AdminProducts() {
                           </div>
                           {Number(form.buyPrice) > 0 && (
                             costBlockedBecause(row.unit)
-                              ? <span className="text-[10px] text-warning font-semibold">Buy cost for {row.unit}: — {costBlockedBecause(row.unit)}</span>
-                              : <span className="text-[10px] text-muted">Buy cost for {row.unit}: TSh {buyCostFor(row.unit).toLocaleString()}</span>
+                              ? <span className="text-[10px] text-warning font-semibold">Buy cost for {stockUnitShort(row.unit)}: — {costBlockedBecause(row.unit)}</span>
+                              : <span className="text-[10px] text-muted">Buy cost for {stockUnitShort(row.unit)}: TSh {buyCostFor(row.unit).toLocaleString()}</span>
                           )}
                           {(['retail', 'wholesale', 'optional'].some(f => { const c = buyCostFor(row.unit); return Number(row[f]) > 0 && c > 0 && Number(row[f]) <= c }) && (
                             <span className="text-danger font-bold text-[10px]">Must be {'>'} buy price (TSh {buyCostFor(row.unit).toLocaleString()})!</span>
