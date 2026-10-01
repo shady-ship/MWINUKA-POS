@@ -20,27 +20,27 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-surface">
-      <section className="bg-gradient-to-r from-primary to-primary-light text-white py-12">
+      <section className="bg-gradient-to-br from-primary to-primary-light text-white py-12 rounded-b-3xl">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-blue-200 text-sm mb-1">WELCOME!</p>
-          <h2 className="text-3xl font-bold mb-2">MWINUKA ENTERPRISES CO LTD</h2>
-          <p className="text-blue-200 text-sm">Serve Customers Better, Sell More, Grow Together.</p>
+          <p className="text-white/70 text-sm mb-1">WELCOME!</p>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2">MWINUKA ENTERPRISES CO LTD</h2>
+          <p className="text-white/70 text-sm">Serve Customers Better, Sell More, Grow Together.</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 max-w-2xl mx-auto">
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <Package className="w-6 h-6 mx-auto mb-2 text-blue-200" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-8 max-w-2xl mx-auto">
+            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
+              <Package className="w-6 h-6 mx-auto mb-2 text-white/80" />
               <p className="text-2xl font-bold">{totalProducts}</p>
-              <p className="text-xs text-blue-200">Total Products</p>
+              <p className="text-xs text-white/70">Total Products</p>
             </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <Search className="w-6 h-6 mx-auto mb-2 text-blue-200" />
+            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
+              <Search className="w-6 h-6 mx-auto mb-2 text-white/80" />
               <p className="text-2xl font-bold">{totalStock}</p>
-              <p className="text-xs text-blue-200">Available Stock Items</p>
+              <p className="text-xs text-white/70">Available Stock Items</p>
             </div>
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-              <ClipboardList className="w-6 h-6 mx-auto mb-2 text-blue-200" />
+            <div className="bg-white/10 backdrop-blur rounded-2xl p-4">
+              <ClipboardList className="w-6 h-6 mx-auto mb-2 text-white/80" />
               <p className="text-2xl font-bold">{todayOrders}</p>
-              <p className="text-xs text-blue-200">Today's Orders</p>
+              <p className="text-xs text-white/70">Today's Orders</p>
             </div>
           </div>
         </div>
@@ -48,14 +48,14 @@ export default function HomePage() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h3 className="text-lg font-bold text-heading mb-4">QUICK ACTIONS</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-10">
           {quickActions.map((action) => (
             <Link
               key={action.label}
               to={action.to}
-              className="bg-white rounded-xl p-5 text-center shadow-sm hover:shadow-md transition-shadow border border-line group"
+              className="bg-white rounded-2xl p-5 text-center shadow-sm hover:shadow-md transition-shadow border border-line group"
             >
-              <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
+              <div className={`w-12 h-12 ${action.color} rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-sm`}>
                 <action.icon className="w-6 h-6 text-white" />
               </div>
               <p className="font-bold text-xs text-heading">{action.label}</p>
@@ -70,9 +70,9 @@ export default function HomePage() {
               <h3 className="text-lg font-bold text-heading">TOP SELLING PRODUCTS</h3>
               <Link to="/products" className="text-accent text-xs font-semibold hover:underline">View All</Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
               {topProducts.map((product) => (
-                <div key={product.id} className="bg-white rounded-xl p-4 shadow-sm border border-line">
+                <div key={product.id} className="bg-white rounded-2xl p-4 shadow-sm border border-line">
                   <h4 className="font-semibold text-sm text-heading">{product.name}</h4>
                   <p className="text-accent font-bold text-sm mt-1">
                     {(product.prices || []).filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(x => {

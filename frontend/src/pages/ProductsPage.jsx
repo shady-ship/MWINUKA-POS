@@ -1,12 +1,18 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search, Plus } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { stockParts } from '../constants'
 
 export default function ProductsPage() {
   const { products, addToCart, cart } = useApp()
-  const [search, setSearch] = useState('')
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState(params.get('q') || '')
+
+  useEffect(() => {
+    const q = params.get('q')
+    if (q != null) setSearch(q)
+  }, [params])
 
   const filtered = products.filter(p =>
     p.active !== 0 && p.name.toLowerCase().includes(search.toLowerCase())

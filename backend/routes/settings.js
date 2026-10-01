@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { query, execute } from '../config/db.js'
 import { logAudit } from '../config/audit.js'
 import { adminOnly } from '../middleware/auth.js'
+import { sendTestAlert, smtpConfigured } from '../notify.js'
 
 const router = Router()
 
@@ -14,6 +15,8 @@ const DEFAULT_SETTINGS = {
   receipt_thankyou: 'Asante sana na karibu tena!',
   receipt_thankyou_en: 'Thank you very much and welcome again!',
   currency: 'TSh',
+  login_alert_enabled: '1',
+  login_alert_email: '',
 }
 
 async function getSettings() {
@@ -46,6 +49,22 @@ router.put('/', adminOnly, async (req, res) => {
     }
     await logAudit(req, 'settings.update', `Updated business settings: ${changed.join(', ') || 'none'}`)
     res.json(await getSettings())
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.post('/test-alert', adminOnly, async (req, res) => {
+  try {
+    if (!smtpConfigured()) {
+      return res.status(400).json({ error: 'Gmail (SMTP) is not configured yet. Add SMTP_USER and SMTP_PASS to backend/.env, then restart the server.' })
+    }
+    const result = await sendTestAlert()
+    if (result.sent) {
+      await logAudit(req, 'settings.test_alert', `Sent test login alert to ${result.to}`)
+      return res.json({ message: `Test alert sent to ${result.to}. Check your inbox (and spam).` })
+    }
+    res.status(400).json({ error: `Could not send: ${result.reason}` })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -1,20 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #1a3a6b;
-  --color-primary-dark: #0f2548;
-  --color-primary-light: #2a5298;
-  --color-accent: #2563eb;
-  --color-accent-light: #3b82f6;
-  --color-success: #16a34a;
-  --color-warning: #f59e0b;
-  --color-danger: #dc2626;
-  --color-sidebar: #0f2548;
+  --color-primary: #007aff;
+  --color-primary-dark: #0a64dd;
+  --color-primary-light: #3395ff;
+  --color-accent: #0a84ff;
+  --color-accent-light: #339aff;
+  --color-success: #34c759;
+  --color-warning: #ff9500;
+  --color-danger: #ff3b30;
+  --color-sidebar: #ffffff;
   --color-card: #ffffff;
-  --color-surface: #f1f5f9;
-  --color-heading: #1e293b;
-  --color-muted: #64748b;
-  --color-line: #e2e8f0;
+  --color-surface: #f2f2f7;
+  --color-heading: #1c1c1e;
+  --color-muted: #8e8e93;
+  --color-line: #e5e5ea;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  background-color: #f2f2f7;
+  color: #1c1c1e;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@supports (padding: max(0px)) {
+  .pb-safe {
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .invoice {

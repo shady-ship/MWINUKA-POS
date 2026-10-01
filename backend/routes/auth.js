@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { query, execute, queryOne } from '../config/db.js'
 import { logAudit, parseModules } from '../config/audit.js'
 import { adminOnly } from '../middleware/auth.js'
+import { notifyLogin, smtpConfigured } from '../notify.js'
 
 const router = Router()
 
@@ -39,10 +40,35 @@ router.post('/login', async (req, res) => {
     } catch (e) { }
 
     await logAudit(req, 'auth.login', `${user.name} logged in${device.label ? ` from ${device.label}` : ''}`)
+
+    notifyLogin({
+      user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role },
+      device,
+      ip: clientIp(req),
+    }).catch(() => {})
+
     res.json({
       token,
       session_id: sessionId,
+      alertConfigured: smtpConfigured(),
       user: { id: user.id, name: user.name, role: user.role, username: user.username, admin_modules: parseModules(user.admin_modules).join(','), allow_manual_price: user.allow_manual_price ? 1 : 0 },
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/me', async (req, res) => {
+  try {
+    const u = await queryOne('SELECT id, name, username, role, active, admin_modules, allow_manual_price FROM users WHERE id = ? AND active = 1', [req.user?.id])
+    if (!u) return res.status(401).json({ error: 'Account disabled or not found' })
+    res.json({
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      username: u.username,
+      admin_modules: parseModules(u.admin_modules).join(','),
+      allow_manual_price: u.allow_manual_price ? 1 : 0,
     })
   } catch (err) {
     res.status(500).json({ error: err.message })

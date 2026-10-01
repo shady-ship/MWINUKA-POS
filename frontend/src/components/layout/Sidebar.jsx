@@ -38,10 +38,10 @@ function renderLink({ label, to, icon: Icon, end }) {
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+        `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors ${
           isActive
-            ? 'bg-accent text-white font-medium'
-            : 'text-blue-200 hover:bg-white/10'
+            ? 'bg-accent/10 text-primary font-semibold'
+            : 'text-heading/70 hover:bg-surface'
         }`
       }
     >
@@ -65,15 +65,15 @@ export default function Sidebar() {
     navigate('/login')
   }
   return (
-    <aside className="w-60 bg-sidebar min-h-screen text-white flex flex-col">
-      <div className="p-4 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="bg-white rounded-lg p-1.5">
+    <aside className="hidden lg:flex w-60 bg-sidebar min-h-screen flex-col border-r border-line">
+      <div className="p-4 border-b border-line">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-accent/10 rounded-xl p-1.5">
             <ShoppingCart className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-tight">{shortName.toUpperCase()}</h1>
-            <p className="text-[10px] text-blue-200">{settings.tagline || 'Enterprise'}</p>
+            <h1 className="font-bold text-sm leading-tight text-heading">{shortName.toUpperCase()}</h1>
+            <p className="text-[10px] text-muted">{settings.tagline || 'Enterprise'}</p>
           </div>
         </div>
       </div>
@@ -83,7 +83,7 @@ export default function Sidebar() {
 
         {isAdmin && (
           <>
-            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold text-blue-300/60 uppercase tracking-wider">
+            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold text-muted uppercase tracking-wider">
               Sales Staff Modules
             </p>
             {staffLinks.map(renderLink)}
@@ -91,8 +91,8 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div className="p-3 border-t border-white/10">
-        <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-blue-200 hover:bg-white/10 w-full transition-colors">
+      <div className="p-3 border-t border-line">
+        <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-danger hover:bg-surface w-full transition-colors">
           <LogOut className="w-4 h-4" />
           Logout
         </button>

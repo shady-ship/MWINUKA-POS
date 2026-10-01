@@ -77,16 +77,45 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user?.sessionId) return
-    const ping = () => {
+    const refreshUser = async () => {
+      if (!session || document.visibilityState === 'hidden') return
+      try {
+        const res = await fetch(`${API}/auth/me`)
+        if (!res.ok) return
+        const data = await res.json()
+        setUser(prev => {
+          if (!prev) return prev
+          if (
+            prev.name === data.name &&
+            prev.role === data.role &&
+            prev.username === data.username &&
+            prev.admin_modules === data.admin_modules &&
+            Number(prev.allow_manual_price) === Number(data.allow_manual_price)
+          ) {
+            return prev
+          }
+          return { ...prev, ...data }
+        })
+      } catch {}
+    }
+    const tick = () => {
       fetch(`${API}/auth/ping`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: user.sessionId }),
       }).catch(() => {})
+      refreshUser()
     }
-    ping()
-    const t = setInterval(ping, 30000)
-    return () => clearInterval(t)
+    tick()
+    const t = setInterval(tick, 30000)
+    const onVisible = () => refreshUser()
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [user?.sessionId])
 
   const login = async (usernameOrEmail, password) => {

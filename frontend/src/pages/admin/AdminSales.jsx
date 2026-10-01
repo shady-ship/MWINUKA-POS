@@ -82,7 +82,7 @@ export default function AdminSales() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-line overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-line overflow-x-auto">
         <div className="px-6 py-4 border-b border-line">
           <h3 className="text-sm font-bold text-heading">RECENT TRANSACTIONS</h3>
         </div>

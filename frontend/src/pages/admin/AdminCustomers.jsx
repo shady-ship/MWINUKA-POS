@@ -36,7 +36,7 @@ export default function AdminCustomers() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-line overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-line overflow-x-auto">
         <div className="p-4 border-b border-line">
           <div className="relative max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

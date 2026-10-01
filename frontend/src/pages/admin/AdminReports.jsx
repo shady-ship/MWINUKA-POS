@@ -201,7 +201,7 @@ export default function AdminReports() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-line overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-line overflow-x-auto">
         <div className="px-6 py-4 border-b border-line flex items-center justify-between">
           <h3 className="text-sm font-bold text-heading">ORDER HISTORY</h3>
         </div>

@@ -89,7 +89,7 @@ export default function AdminAudit() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-line overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-line overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-line">

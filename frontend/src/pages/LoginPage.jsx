@@ -33,54 +33,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-primary-light flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <ShoppingCart className="w-8 h-8 text-primary" />
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+            <ShoppingCart className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">{(settings.business_name || 'Mwinuka Enterprises').toUpperCase()}</h1>
-          <p className="text-blue-200 text-sm mt-1">{settings.tagline || 'Point of Sale System'}</p>
+          <h1 className="text-2xl font-bold text-heading">{(settings.business_name || 'Mwinuka Enterprises').toUpperCase()}</h1>
+          <p className="text-muted text-sm mt-1">{settings.tagline || 'Point of Sale System'}</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-xl">
-          <h2 className="text-lg font-bold text-heading text-center mb-6">Sign In</h2>
+        <div className="bg-white rounded-3xl p-7 shadow-xl shadow-black/5 border border-line">
+          <h2 className="text-xl font-bold text-heading text-center mb-6">Sign In</h2>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-danger text-xs rounded-lg p-3 mb-4">
+            <div className="bg-danger/10 border border-danger/20 text-danger text-xs rounded-xl p-3 mb-4">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-heading mb-1">Username or Email</label>
+              <label className="block text-xs font-semibold text-heading mb-1.5">Username or Email</label>
               <div className="relative">
-                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
                   type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="Enter username or email"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface text-sm text-heading placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-heading mb-1">Password</label>
+              <label className="block text-xs font-semibold text-heading mb-1.5">Password</label>
               <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-surface text-sm text-heading placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                 />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-heading">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-heading">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -89,7 +89,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+              className="w-full bg-primary text-white py-3 rounded-xl text-sm font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50 shadow-md shadow-primary/25"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
