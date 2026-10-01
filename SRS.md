@@ -1,8 +1,8 @@
 # Software Requirements Specification (SRS)
 ## MWINUKA ENTERPRISES CO. LTD — Point of Sale System (MVP)
 
-- **Version:** 1.0
-- **Date:** 2026-09-30
+- **Version:** 1.1
+- **Date:** 2026-10-01
 - **Status:** Live MVP
 - **Owner:** Mwinuka Enterprises Co. Ltd, Mbeya, Tanzania
 
@@ -23,6 +23,7 @@ In scope:
 - Staff accounts with per-module access control
 - Device/session management and audit logging
 - Business profile settings
+- Login-notification emails (Gmail SMTP) alerting the owner of every staff login
 
 Out of scope (planned, not MVP): multi-branch, cloud hosting, offline mode, accounting/loss reports.
 
@@ -34,6 +35,8 @@ Out of scope (planned, not MVP): multi-branch, cloud hosting, offline mode, acco
 | Retail / Wholesale / Optional | Three sellable price types per unit |
 | `allow_manual_price` | Permission allowing a user to type a custom selling price |
 | Admin module | A backend section a staff member may be granted access to |
+| SMTP | Simple Mail Transfer Protocol — used to relay login alert emails |
+| App password | A 16-character Google app password, required because Gmail blocks normal-password SMTP login |
 
 ### 1.4 Operating Environment
 - **Host:** Windows PC on the shop LAN (static IP `192.168.1.116`)
@@ -58,6 +61,8 @@ Default accounts: `admin@mwinuka.co.tz`, `john@mwinuka.co.tz` (sales staff).
 - **FR-AUTH-3 — Session enforcement.** Every API request (except login and health) requires a valid JWT **and** a valid `x-session-id`. Revoked/ended sessions receive `401` and the app auto-logs out.
 - **FR-AUTH-4 — Change password.** A user may change their own password; an admin may change any user's password.
 - **FR-AUTH-5 — Permission live-refresh.** Permissions are re-read from the database on every request, and the UI refreshes `/auth/me` every 30 s (and on window focus), so granted modules appear on a salesman's sidebar without re-login.
+- **FR-AUTH-6 — Login notification.** When login alerts are enabled and SMTP is configured, every successful login sends one email to the alert recipient containing the user's name, username, role, device, browser, OS, IP address and login time. Email delivery is best-effort and must never block or fail the login itself.
+- **FR-AUTH-7 — Test notification.** An admin can send an on-demand test alert from Settings to verify delivery before relying on the feature.
 
 ### 2.2 Roles & Module Access (FR-ACCESS)
 - **FR-ACCESS-1.** Modules: Dashboard, Products, Stock, Sales, Orders, Customers, Staff, Devices, Reports, Settings, Audit Log.
@@ -104,6 +109,7 @@ Default accounts: `admin@mwinuka.co.tz`, `john@mwinuka.co.tz` (sales staff).
 
 ### 2.11 Settings (FR-SET)
 - **FR-SET-1.** Business profile: name, tagline, phone, email, address — printed on the invoice and shown across the app. Only admin can change.
+- **FR-SET-2 — Login alerts.** Admin can enable/disable login notifications and set the recipient email address. Credentials live only in the backend `.env` and are never editable or readable from the UI.
 
 ### 2.12 UI Requirements (FR-UI)
 - **FR-UI-1.** iOS-style visual design: system font, rounded cards/corner radii, light grey backgrounds (`#F2F2F7`), iOS blue `#007AFF`, translucent blurred headers.
@@ -123,11 +129,15 @@ Default accounts: `admin@mwinuka.co.tz`, `john@mwinuka.co.tz` (sales staff).
 | NFR-5 | **Maintainability** — modular Express routers; React contexts; single `dist` bundle served by the backend. |
 | NFR-6 | **Localization** — UI labels in English; Swahili copy available in content. |
 | NFR-7 | **Data integrity** — revenue = paid items only; selling price enforced above buy cost; stock converted via pack factors. |
+| NFR-8 | **Credential handling** — the Gmail app password is stored only in the backend `.env`, never committed to source control, never returned by any API, and never displayed in the UI. |
+| NFR-9 | **Alert reliability** — notification failures are logged but swallowed, so no user can ever be locked out of the POS because an email failed. |
 
 ---
 
 ## 4. Constraints & Assumptions
 - Single shop, single host PC; no cloud fallback required (tunnel access optional).
+- Login alerts depend on outbound access to `smtp.gmail.com:587` from the host PC. A network that filters or blocks outbound SMTP (for example TLS-inspecting firewalls) will prevent delivery; LAN operation is unaffected.
+- SMS notification is not implemented. Adding it requires a third-party gateway (e.g. Africa's Talking) with an account and API credentials.
 - Data stored in a local MariaDB database `mwinuka_pos` (MySQL 5.x compatible).
 - Internet access is not required for normal LAN operation.
 - Printing assumes a local 80 mm thermal receipt printer via browser print.
@@ -138,3 +148,4 @@ Default accounts: `admin@mwinuka.co.tz`, `john@mwinuka.co.tz` (sales staff).
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09-30 | Initial MVP baseline (auth, sales, products, stock, orders, customers, staff access, sessions, audit, reports, settings, iOS-style responsive UI). |
+| 1.1 | 2026-10-01 | Added login-notification emails (FR-AUTH-6, FR-AUTH-7, FR-SET-2) via Gmail SMTP, with credential-handling and reliability non-functional requirements. |

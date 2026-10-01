@@ -66,9 +66,9 @@ export default function OrdersPage() {
 
   const savePaid = async () => {
     setSavingPay(true)
-    const ok = await markItemsPaid(viewOrder.id, paidIds)
-    if (!ok) {
-      alert('Could not save payment. Please restart the server (backend) and try again, then tick the paid items.')
+    const res = await markItemsPaid(viewOrder.id, paidIds)
+    if (!res.ok) {
+      alert(`Could not save payment. ${res.error}`)
     } else {
       await reloadView(viewOrder.id)
     }

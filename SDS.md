@@ -1,8 +1,8 @@
 # Software Design Specification (SDS)
 ## MWINUKA ENTERPRISES CO. LTD — Point of Sale System (MVP)
 
-- **Version:** 1.0
-- **Date:** 2026-09-30
+- **Version:** 1.1
+- **Date:** 2026-10-01
 - **Status:** Live MVP
 
 ---
@@ -33,7 +33,7 @@ Three-tier, single-deployment design on one Windows PC:
 | Layer | Technology |
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS v4, react-router-dom, lucide-react icons |
-| Backend | Node.js (≥18), Express, jsonwebtoken, bcryptjs, dotenv, mysql2 |
+| Backend | Node.js (≥18), Express, jsonwebtoken, bcryptjs, dotenv, mysql2, nodemailer |
 | Database | MariaDB (`mwinuka_pos`) |
 | Build/run | `npm run build` (frontend), `node server.js` (backend) |
 
@@ -46,6 +46,8 @@ MWINUKA POS/
 │  ├─ config/
 │  │  ├─ db.js             # connection pool + initDb
 │  │  └─ seed.js           # DDL, migrations, default users/data
+│  │   (.env also holds SMTP_* and ALERT_EMAIL)
+│  ├─ notify.js            # Gmail SMTP transport, notifyLogin, sendTestAlert
 │  ├─ middleware/auth.js   # auth + adminOnly
 │  ├─ config/audit.js      # logAudit, parseModules
 │  └─ routes/              # auth, products, orders, customers, reports, settings, audit
@@ -130,11 +132,13 @@ The per-request DB read makes permission grants effective immediately (server-au
 | `POST /auth/change-password` | auth | Own password; admin may pass `userId` |
 | `DELETE /auth/users/:id` | admin | Remove user |
 
+On a successful login the route calls `notifyLogin(user, session)` **after** the session row is inserted and **before** the response is sent. The call is fire-and-forget (`.catch()`) so SMTP latency or failure can never delay or reject a valid login.
+
 ### 3.4 Business Modules (route pattern)
 - **Products** — CRUD + per-unit price matrix in `product_prices`; pack factors; stock/deactivate; admin-only create/update/delete.
 - **Orders** — create order (with items, invoice number), list/filter, detail, pay-items, update items/status, delete; admin gates on mutation where required.
 - **Customers** — CRUD, balances; admin gates on edit/delete.
-- **Settings** — GET public, PUT admin-only.
+- **Settings** — GET public, PUT admin-only. Accepts the business profile plus `login_alert_enabled` / `login_alert_email`. Exposes `POST /settings/test-alert` (admin) which calls `sendTestAlert()` so delivery can be verified on demand.
 - **Reports** — sales summary (revenue = paid items), reset-orders / reset-all (admin).
 - **Audit** — filterable action log (admin).
 
@@ -154,6 +158,9 @@ orders         id, order_no(UNIQUE), customer_id(FK), salesman_id(FK), total,
 order_items    id, order_id(FK cascade), product_id(FK), quantity, unit, price_type,
                unit_price, total, paid(TINYINT)
 settings       id, setting_key(UNIQUE), setting_value
+                -- keys include business_name, business_phone, business_email,
+                --          business_address, business_tagline,
+                --          login_alert_enabled, login_alert_email
 audit_logs     id, user_id, username, role, action, details, created_at
 sessions       id, user_id(FK), device_label, browser, os, ip, login_at, last_seen, logout_at
 ```
@@ -176,6 +183,23 @@ Browser                          Express                       MariaDB
 ```
 Revocation: `logout_at` set → subsequent requests fail `auth` → fetch wrapper `expire()` → redirect to `/login`.
 
+### 3.7 Login Notification Module (`notify.js`)
+A self-contained module with no route dependencies:
+
+| Export | Behaviour |
+|---|---|
+| `smtpConfigured()` | True when both `SMTP_USER` and `SMTP_PASS` are present in `.env` |
+| `notifyLogin(user, session)` | Builds the subject/body (name, username, role, device, browser, OS, IP, timestamp), resolves the recipient (`login_alert_email` setting → `ALERT_EMAIL` fallback), sends via `notifyLogin(user, session).catch(log)` |
+| `sendTestAlert(req)` | Sends a diagnostic message to the configured recipient; rejects with a clear message when SMTP is unconfigured |
+
+- **Transport:** `nodemailer` SMTP against `SMTP_HOST:SMTP_PORT` (Gmail `smtp.gmail.com:587`, STARTTLS) with `SMTP_USER` / `SMTP_PASS`. `secure` is derived from the port, so port 465 works without extra config.
+- **Sender:** `SMTP_FROM`, falling back to the SMTP user itself.
+- **Config precedence:** recipient = DB setting `login_alert_email` → env `ALERT_EMAIL` → SMTP user.
+- **Failure isolation:** `notifyLogin()` is invoked with `.catch()`; any SMTP failure is logged to the server log and discarded. Login success is never contingent on email delivery.
+- **Secrets:** `.env` holds `SMTP_PASS` (a 16-char Google app password, never the account password). It is not committed, not returned by any endpoint, and has no UI field.
+
+**Frontend:** `AdminSettings.jsx` renders a *Login Alerts* card with an enable toggle, recipient input, *Save* and *Send Test Email*. Only the toggle/email are editable — the UI states that credentials are server-side.
+
 ---
 
 ## 4. Security Model
@@ -184,6 +208,8 @@ Revocation: `logout_at` set → subsequent requests fail `auth` → fetch wrappe
 - **Authorisation:** server re-queries the user row each request; role + `admin_modules` decide route access; UI merely hides what the server enforces.
 - **Sessions:** revocable; force sign-out is immediate; `last_seen` throttled DB writes.
 - **Headers:** auth via the wrapper so every fetch is protected; `CORS` enabled for LAN use.
+- **Notification credentials:** the Gmail app password lives only in `backend/.env`. No endpoint echoes it, the Settings UI never renders it, and `test-alert` returns only a success/failure message — never the credential or the SMTP error body.
+- **Owner alerts:** every login is emailed to the configured recipient, giving the shop owner an out-of-band record of who accessed the POS and from where.
 
 ---
 
@@ -193,6 +219,23 @@ Revocation: `logout_at` set → subsequent requests fail `auth` → fetch wrappe
 3. Access `http://192.168.1.116:5000` on LAN.
 4. Off-site: ngrok (`ngrok http 5000 --url=<static-domain>`) or Cloudflare Quick Tunnel, run from a terminal that stays open.
 5. Restart note: mysqld is launched manually via `C:\xampp\mysql\bin\mysqld.exe`; the backend serves the latest `dist` automatically on rebuild.
+6. **`.env` changes require a backend restart** — env vars are read once at boot, so SMTP credentials only take effect after `node server.js` is restarted.
+
+### 5.1 Gmail Alert Setup (verified working)
+1. Gmail account must have **2-Step Verification** enabled.
+2. Create a 16-character app password at `myaccount.google.com/apppasswords`.
+3. Add to `backend/.env` (no spaces in the app password):
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=<gmail address>
+   SMTP_PASS=<16-char app password>
+   SMTP_FROM="Mwinuka Enterprises Co Ltd <gmail address>"
+   ALERT_EMAIL=<default recipient>
+   ```
+4. Restart the backend, then Admin → Settings → *Send Test Email*.
+
+Signups for these services must be completed on a network without TLS inspection (e.g. phone hotspot) — the shop network blocks them.
 
 ---
 
@@ -200,3 +243,14 @@ Revocation: `logout_at` set → subsequent requests fail `auth` → fetch wrappe
 - Non-elevated CLI cannot configure static IP or system services; admin PowerShell used for network config.
 - GitHub/HTTPS downloads are throttled on the shop network (Fortinet inspection); signups/tunnels may need a different network (phone hotspot).
 - The `sales_staff` account `john@mwinuka.co.tz` had its password changed externally; credentials are not stored in the repo.
+- Login alerts depend on outbound `smtp.gmail.com:587`. TLS-inspecting firewalls (Fortinet) may block it; LAN operation is unaffected either way. SMS alerts are not implemented and would need a third-party gateway account.
+- A Vercel deployment was attempted and is not viable for this architecture — serverless functions cannot host the long-running Express server or reach the local MariaDB instance, and it returned `FUNCTION_INVOCATION_FAILED`. Off-site access is provided by a local tunnel instead.
+- Credential hygiene: a real Gmail password was once pasted into a chat session. It should be rotated, and app passwords revoked/rotated after any credential exposure.
+
+---
+
+## 7. Revision History
+| Version | Date | Change |
+|---|---|---|
+| 1.0 | 2026-09-30 | Initial MVP design baseline. |
+| 1.1 | 2026-10-01 | Added the login-notification module (`notify.js`), settings keys and test-alert endpoint, SMTP environment contract, and deployment notes. |

@@ -5,15 +5,42 @@ import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
-const UNITS = ['Piece', 'Dozen', 'Carton']
+const UNITS = ['Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton']
 const PRICE_COLS = ['retail_price', 'wholesale_price', 'optional_price']
+
+function unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  if (unit === 'Piece') return 1
+  const ppd = Number(piecesPerDozen) || 0
+  const ppc = Number(piecesPerCarton) || 0
+  const dpc = Number(dozensPerCarton) || 0
+  const perCarton = ppc > 0 ? ppc : dpc > 0 && ppd > 0 ? dpc * ppd : 0
+  if (unit === 'Dozen') return ppd
+  if (unit === 'HalfDozen') return ppd > 0 && ppd % 2 === 0 ? ppd / 2 : 0
+  if (unit === 'Carton') return perCarton
+  if (unit === 'HalfCarton') return perCarton > 0 && perCarton % 2 === 0 ? perCarton / 2 : 0
+  return 0
+}
+
+function unitUnusableReason(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const ppd = Number(piecesPerDozen) || 0
+  const ppc = Number(piecesPerCarton) || 0
+  const dpc = Number(dozensPerCarton) || 0
+  const perCarton = ppc > 0 ? ppc : dpc > 0 && ppd > 0 ? dpc * ppd : 0
+  if (unit === 'Dozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd % 2 !== 0) return `a dozen of ${ppd} pieces cannot be split in half`
+  if (unit === 'Carton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton % 2 !== 0) return `a carton of ${perCarton} pieces cannot be split in half`
+  return null
+}
 
 async function attachPrices(rows) {
   if (rows.length === 0) return rows
   const ids = rows.map(p => p.id)
   const placeholders = ids.map(() => '?').join(',')
   const priceRows = await query(
-    `SELECT product_id, unit, retail_price, wholesale_price, optional_price FROM product_prices WHERE product_id IN (${placeholders}) ORDER BY FIELD(unit, 'Piece', 'Dozen', 'Carton')`,
+    `SELECT product_id, unit, retail_price, wholesale_price, optional_price FROM product_prices WHERE product_id IN (${placeholders}) ORDER BY FIELD(unit, 'Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton')`,
     ids
   )
   const byProduct = {}
@@ -39,28 +66,39 @@ async function attachPrices(rows) {
   })
 }
 
-function unitBuyCost(bp, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+function unitBuyCost(bp, baseUnit, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   if (bp <= 0) return 0
-  const ppd = Number(piecesPerDozen) || 12
-  const ppc = Number(piecesPerCarton) || 0
-  const dpc = Number(dozensPerCarton) || 0
-  const per = ppc > 0 ? ppc : dpc > 0 ? dpc * ppd : 0
-  if (unit === 'Carton') return bp
-  if (per > 0) {
-    const perPiece = bp / per
-    if (unit === 'Dozen') return perPiece * ppd
-    return perPiece
-  }
-  if (unit === 'Dozen') return bp * ppd
-  return bp
+  const perBase = unitPieces(baseUnit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  const perTarget = unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  if (perBase <= 0 || perTarget <= 0) return 0
+  return (bp / perBase) * perTarget
 }
 
-function validatePrices(prices, buyPrice, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+function validatePrices(prices, buyPrice, buyPriceUnit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const bp = Number(buyPrice) || 0
   const list = Array.isArray(prices) ? prices : []
+  const base = UNITS.includes(buyPriceUnit) ? buyPriceUnit : 'Piece'
+  const ppd = Number(piecesPerDozen) || 0
+  const perCarton = (Number(piecesPerCarton) || 0) || ((Number(dozensPerCarton) || 0) > 0 && ppd > 0 ? (Number(dozensPerCarton) || 0) * ppd : 0)
+  if (bp > 0 && base === 'Carton' && perCarton <= 0) {
+    return { error: 'Buy Price is set per Carton but no pack size is set. Enter Pieces per Carton or Dozens per Carton.' }
+  }
+  if (bp > 0 && base === 'HalfCarton' && perCarton <= 0) {
+    return { error: 'Buy Price is set per Half Carton but no pack size is set. Enter Pieces per Carton or Dozens per Carton.' }
+  }
+  if (bp > 0 && base === 'Dozen' && ppd <= 0) {
+    return { error: 'Buy Price is set per Dozen but Pieces per Dozen is not set. Enter how many pieces are in one dozen for this product.' }
+  }
+  if (bp > 0 && base === 'HalfDozen' && ppd <= 0) {
+    return { error: 'Buy Price is set per Half Dozen but Pieces per Dozen is not set. Enter how many pieces are in one dozen for this product.' }
+  }
   for (const p of list) {
     if (!UNITS.includes(p.unit)) return { error: `Invalid unit: ${p.unit}` }
-    const cost = unitBuyCost(bp, p.unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+    const unusable = unitUnusableReason(p.unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+    if (unusable) {
+      return { error: `${p.unit} cannot be sold for this product because ${unusable}. Enter the pack specification below, or untick that unit.` }
+    }
+    const cost = unitBuyCost(bp, base, p.unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
     for (const col of PRICE_COLS) {
       const val = Number(p[col]) || 0
       if (val > 0 && cost > 0 && val <= cost) {
@@ -78,8 +116,7 @@ function normalizePack(value) {
 }
 
 function normalizeDozen(value) {
-  const n = normalizePack(value)
-  return n > 0 ? n : 12
+  return normalizePack(value)
 }
 
 function normalizePrices(input) {
@@ -133,7 +170,7 @@ async function savePrices(productId, prices) {
 
 router.post('/', adminOnly, async (req, res) => {
   try {
-    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
+    const { name, category, stock, min_stock, unit, active, buy_price, buy_price_unit, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen, alt_name } = req.body
     if (!name) return res.status(400).json({ error: 'Product name is required' })
 
     const bp = Number(buy_price || 0) || 0
@@ -141,12 +178,12 @@ router.post('/', adminOnly, async (req, res) => {
     const ppc = normalizePack(pieces_per_carton)
     const dpc = normalizePack(dozens_per_carton)
     const ppd = normalizeDozen(pieces_per_dozen)
-    const check = validatePrices(normPrices, bp, ppc, dpc, ppd)
+    const check = validatePrices(normPrices, bp, buy_price_unit, ppc, dpc, ppd)
     if (check.error) return res.status(400).json({ error: check.error })
 
     const result = await execute(
-      'INSERT INTO products (name, category, stock, min_stock, unit, active, buy_price, pieces_per_carton, dozens_per_carton, pieces_per_dozen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, category || null, stock || 0, min_stock || 20, unit || null, active === undefined ? 1 : (active ? 1 : 0), bp, ppc, dpc, ppd]
+      'INSERT INTO products (name, alt_name, category, stock, min_stock, unit, active, buy_price, buy_price_unit, pieces_per_carton, dozens_per_carton, pieces_per_dozen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, alt_name || null, category || null, stock || 0, min_stock || 20, unit || null, active === undefined ? 1 : (active ? 1 : 0), bp, UNITS.includes(buy_price_unit) ? buy_price_unit : 'Piece', ppc, dpc, ppd]
     )
 
     if (normPrices.length > 0) await savePrices(result.insertId, normPrices)
@@ -160,11 +197,12 @@ router.post('/', adminOnly, async (req, res) => {
 
 router.put('/:id', adminOnly, async (req, res) => {
   try {
-    const { name, category, stock, min_stock, unit, active, buy_price, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen } = req.body
+    const { name, category, stock, min_stock, unit, active, buy_price, buy_price_unit, prices, pieces_per_carton, dozens_per_carton, pieces_per_dozen, alt_name } = req.body
 
     const sets = []
     const params = []
     if (name !== undefined) { sets.push('name=?'); params.push(name) }
+    if (alt_name !== undefined) { sets.push('alt_name=?'); params.push(alt_name || null) }
     if (category !== undefined) { sets.push('category=?'); params.push(category) }
     if (stock !== undefined) { sets.push('stock=?'); params.push(stock) }
     if (min_stock !== undefined) { sets.push('min_stock=?'); params.push(min_stock) }
@@ -174,6 +212,10 @@ router.put('/:id', adminOnly, async (req, res) => {
       const bp = Number(buy_price) || 0
       sets.push('buy_price=?'); params.push(bp)
     }
+    if (buy_price_unit !== undefined) {
+      sets.push('buy_price_unit=?')
+      params.push(UNITS.includes(buy_price_unit) ? buy_price_unit : 'Piece')
+    }
     if (pieces_per_carton !== undefined) { sets.push('pieces_per_carton=?'); params.push(normalizePack(pieces_per_carton)) }
     if (dozens_per_carton !== undefined) { sets.push('dozens_per_carton=?'); params.push(normalizePack(dozens_per_carton)) }
     if (pieces_per_dozen !== undefined) { sets.push('pieces_per_dozen=?'); params.push(normalizeDozen(pieces_per_dozen)) }
@@ -181,15 +223,20 @@ router.put('/:id', adminOnly, async (req, res) => {
     const existing = await queryOne('SELECT * FROM products WHERE id = ?', [req.params.id])
     if (!existing) return res.status(404).json({ error: 'Product not found' })
 
+    const effPpc = pieces_per_carton !== undefined ? normalizePack(pieces_per_carton) : normalizePack(existing.pieces_per_carton)
+    const effDpc = dozens_per_carton !== undefined ? normalizePack(dozens_per_carton) : normalizePack(existing.dozens_per_carton)
+    const effPpd = pieces_per_dozen !== undefined ? normalizeDozen(pieces_per_dozen) : normalizeDozen(existing.pieces_per_dozen)
+    const effBase = UNITS.includes(buy_price_unit) ? buy_price_unit : (buy_price_unit !== undefined ? 'Piece' : (existing.buy_price_unit || 'Piece'))
+    const effBp = buy_price !== undefined ? (Number(buy_price) || 0) : (Number(existing.buy_price) || 0)
+
     if (prices !== undefined) {
-      const bp = buy_price !== undefined ? (Number(buy_price) || 0) : (Number(existing.buy_price) || 0)
-      const effPpc = pieces_per_carton !== undefined ? normalizePack(pieces_per_carton) : normalizePack(existing.pieces_per_carton)
-      const effDpc = dozens_per_carton !== undefined ? normalizePack(dozens_per_carton) : normalizePack(existing.dozens_per_carton)
-      const effPpd = pieces_per_dozen !== undefined ? normalizeDozen(pieces_per_dozen) : normalizeDozen(existing.pieces_per_dozen)
       const normPrices = normalizePrices(!Array.isArray(prices) ? [prices] : prices)
-      const check = validatePrices(normPrices, bp, effPpc, effDpc, effPpd)
+      const check = validatePrices(normPrices, effBp, effBase, effPpc, effDpc, effPpd)
       if (check.error) return res.status(400).json({ error: check.error })
       await savePrices(req.params.id, normPrices)
+    } else {
+      const check = validatePrices([], effBp, effBase, effPpc, effDpc, effPpd)
+      if (check.error) return res.status(400).json({ error: check.error })
     }
 
     if (sets.length > 0) {

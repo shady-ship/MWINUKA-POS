@@ -9,7 +9,7 @@ import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCo
 export default function CreateOrderPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, removeFromCart, clearCart, placeOrder, cartTotal, products, usersList, getAvailableTypes } = useApp()
+  const { cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, setCartItemAltName, setAllCartAltName, removeFromCart, clearCart, placeOrder, cartTotal, products, usersList, getAvailableTypes } = useApp()
   const [customerName, setCustomerName] = useState('')
   const [salesmanId, setSalesmanId] = useState(user?.id || '')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
@@ -38,7 +38,7 @@ export default function CreateOrderPage() {
     setOptionalWarnings(prev => {
       const next = { ...prev }
       const item = cart.find(i => i.lineId === lineId)
-      const cost = item ? unitBuyCost(item.buy_price, item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton, item.pieces_per_dozen) : 0
+      const cost = item ? unitBuyCost(item.buy_price, item.buy_price_unit || 'Piece', item.selectedUnit, item.pieces_per_carton, item.dozens_per_carton, item.pieces_per_dozen) : 0
       const sp = Number(typedValue) || 0
       if (cost > 0 && sp > 0 && sp <= cost) {
         next[lineId] = `Selling price must be > buy price (TSh ${cost.toLocaleString()})!`
@@ -60,12 +60,12 @@ export default function CreateOrderPage() {
       return alert(`Please enter the Optional price for ${unsetOptional.name} (${unsetOptional.selectedUnit}) before placing the order.`)
     }
     const belowBuy = cart.find(i => {
-      const cost = unitBuyCost(i.buy_price, i.selectedUnit, i.pieces_per_carton, i.dozens_per_carton, i.pieces_per_dozen)
+      const cost = unitBuyCost(i.buy_price, i.buy_price_unit || 'Piece', i.selectedUnit, i.pieces_per_carton, i.dozens_per_carton, i.pieces_per_dozen)
       const sp = Number(i.selectedPrice) || 0
       return cost > 0 && sp > 0 && sp <= cost
     })
     if (belowBuy) {
-      return alert(`Selling price TSh ${Number(belowBuy.selectedPrice).toLocaleString()} for ${belowBuy.name} (${belowBuy.selectedUnit}) must be greater than the buy price (TSh ${unitBuyCost(belowBuy.buy_price, belowBuy.selectedUnit, belowBuy.pieces_per_carton, belowBuy.dozens_per_carton, belowBuy.pieces_per_dozen).toLocaleString()}).`)
+      return alert(`Selling price TSh ${Number(belowBuy.selectedPrice).toLocaleString()} for ${belowBuy.name} (${belowBuy.selectedUnit}) must be greater than the buy price (TSh ${unitBuyCost(belowBuy.buy_price, belowBuy.buy_price_unit || 'Piece', belowBuy.selectedUnit, belowBuy.pieces_per_carton, belowBuy.dozens_per_carton, belowBuy.pieces_per_dozen).toLocaleString()}).`)
     }
     const neededByProduct = {}
     for (const item of cart) {
@@ -81,7 +81,7 @@ export default function CreateOrderPage() {
     }
     const salesman = usersList.find(u => Number(u.id) === Number(salesmanId))
     const itemsForPrint = cart.map(item => ({
-      product_name: item.name,
+      product_name: item.useAltName && item.alt_name ? item.alt_name : item.name,
       quantity: item.quantity,
       unit: item.selectedUnit,
       price_type: item.selectedPriceType,
@@ -179,6 +179,7 @@ export default function CreateOrderPage() {
                       className="w-full flex items-center justify-between p-2 rounded hover:bg-white transition-colors text-left">
                       <div>
                         <p className="text-xs font-semibold text-heading">{product.name}</p>
+                        {product.alt_name && <p className="text-[10px] text-accent font-medium">aka {product.alt_name}</p>}
                         <p className="text-[10px] text-muted">
                           {product.prices?.map(x => {
                             const parts = []
@@ -238,6 +239,14 @@ export default function CreateOrderPage() {
                           <td className="px-3 py-3 text-xs text-muted">{index + 1}</td>
                           <td className="px-3 py-3">
                             <p className="text-sm font-semibold text-heading">{item.name}</p>
+                            {item.alt_name && (
+                              <label className="flex items-center gap-1 mt-0.5 cursor-pointer">
+                                <input type="checkbox" checked={!!item.useAltName}
+                                  onChange={e => setCartItemAltName(item.lineId, e.target.checked)}
+                                  className="w-3 h-3 accent-primary" />
+                                <span className="text-[10px] text-muted">Print as <span className="font-semibold text-heading">{item.alt_name}</span></span>
+                              </label>
+                            )}
                             {hasSplit && <p className="text-[10px] text-accent font-medium">{ppc > 0 ? `${ppc} pcs/carton` : `${dpc} dzs/carton`}</p>}
                           </td>
                           <td className="px-3 py-3 text-center">

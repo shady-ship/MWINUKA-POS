@@ -5,19 +5,39 @@ import { adminOnly } from '../middleware/auth.js'
 
 const router = Router()
 
+function unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  if (unit === 'Piece') return 1
+  const ppd = Number(piecesPerDozen) || 0
+  const ppc = Number(piecesPerCarton) || 0
+  const dpc = Number(dozensPerCarton) || 0
+  const perCarton = ppc > 0 ? ppc : dpc > 0 && ppd > 0 ? dpc * ppd : 0
+  if (unit === 'Dozen') return ppd
+  if (unit === 'HalfDozen') return ppd > 0 && ppd % 2 === 0 ? ppd / 2 : 0
+  if (unit === 'Carton') return perCarton
+  if (unit === 'HalfCarton') return perCarton > 0 && perCarton % 2 === 0 ? perCarton / 2 : 0
+  return 0
+}
+
+function unitUnusableReason(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const ppd = Number(piecesPerDozen) || 0
+  const ppc = Number(piecesPerCarton) || 0
+  const dpc = Number(dozensPerCarton) || 0
+  const perCarton = ppc > 0 ? ppc : dpc > 0 && ppd > 0 ? dpc * ppd : 0
+  if (unit === 'Dozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd % 2 !== 0) return `a dozen of ${ppd} pieces cannot be split in half`
+  if (unit === 'Carton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton % 2 !== 0) return `a carton of ${perCarton} pieces cannot be split in half`
+  return null
+}
+
 async function piecesFor(productId, qty, unit) {
   const q = Number(qty) || 0
   if (!q) return 0
   const p = await queryOne('SELECT pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id = ?', [productId])
-  const ppc = Number(p?.pieces_per_carton) || 0
-  const dpc = Number(p?.dozens_per_carton) || 0
-  const ppd = Number(p?.pieces_per_dozen) || 12
-  if (unit === 'Dozen') return q * ppd
-  if (unit === 'Carton') {
-    const perCarton = ppc > 0 ? ppc : dpc > 0 ? dpc * ppd : 0
-    return perCarton > 0 ? q * perCarton : q
-  }
-  return q
+  const per = unitPieces(unit, p?.pieces_per_carton, p?.dozens_per_carton, p?.pieces_per_dozen)
+  return per > 0 ? q * per : 0
 }
 
 router.get('/', async (req, res) => {
@@ -70,14 +90,19 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.put('/:id/pay-items', adminOnly, async (req, res) => {
+router.put('/:id/pay-items', async (req, res) => {
   try {
     const orderId = req.params.id
     const { item_ids } = req.body
     const ids = Array.isArray(item_ids) ? item_ids.map(Number).filter(Boolean) : []
 
-    const order = await queryOne('SELECT order_no, status FROM orders WHERE id = ?', [orderId])
+    const order = await queryOne('SELECT order_no, status, salesman_id FROM orders WHERE id = ?', [orderId])
     if (!order) return res.status(404).json({ error: 'Order not found' })
+
+    const isAdmin = req.user.role === 'admin'
+    if (!isAdmin && Number(order.salesman_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: 'You can only record payment on your own orders' })
+    }
 
     await execute('UPDATE order_items SET paid = 0 WHERE order_id = ?', [orderId])
     for (const id of ids) {
@@ -112,37 +137,71 @@ router.post('/', async (req, res) => {
   try {
     const { customer_name, customer_phone, salesman_id, items, payment_method, notes, order_date } = req.body
 
-    let customer = await queryOne('SELECT id FROM customers WHERE name = ?', [customer_name])
+    const customerName = typeof customer_name === 'string' ? customer_name.trim() : ''
+    if (!customerName) {
+      return res.status(400).json({ error: 'Customer name is required' })
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'An order needs at least one item' })
+    }
+
+    for (const item of items) {
+      if (!item.product_id) return res.status(400).json({ error: 'Every item needs a product' })
+      const qty = Number(item.quantity)
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return res.status(400).json({ error: 'Item quantity must be greater than zero' })
+      }
+      const price = Number(item.price)
+      if (!Number.isFinite(price) || price < 0) {
+        return res.status(400).json({ error: 'Item price must be zero or more' })
+      }
+    }
+
+    const orderPids = [...new Set(items.map(i => Number(i.product_id)).filter(Boolean))]
+    if (orderPids.length > 0) {
+      const packs = await query(
+        'SELECT id, name, pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id IN (?)',
+        [orderPids.join(',')]
+      )
+      const packOf = {}
+      packs.forEach(p => { packOf[p.id] = p })
+      for (const item of items) {
+        const p = packOf[Number(item.product_id)]
+        if (!p) continue
+        const reason = unitUnusableReason(item.unit || 'Piece', p.pieces_per_carton, p.dozens_per_carton, p.pieces_per_dozen)
+        if (reason) {
+          return res.status(400).json({ error: `${p.name}: ${item.unit} cannot be sold because ${reason}. An admin must set its pack specification first.` })
+        }
+      }
+    }
+
+    let customer = await queryOne('SELECT id FROM customers WHERE name = ?', [customerName])
     let customerId
     if (!customer) {
-      const custResult = await execute('INSERT INTO customers (name, phone) VALUES (?, ?)', [customer_name, customer_phone || null])
+      const custResult = await execute('INSERT INTO customers (name, phone) VALUES (?, ?)', [customerName, customer_phone || null])
       customerId = custResult.insertId
     } else {
       customerId = customer.id
     }
 
-    const total = items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0)
+    const total = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity), 0)
     const itemPids = [...new Set(items.map(i => Number(i.product_id)).filter(Boolean))]
     if (itemPids.length > 0) {
-      const buys = await query(`SELECT id, buy_price, pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id IN (${itemPids.map(() => '?').join(',')})`, itemPids)
+      const buys = await query(`SELECT id, buy_price, buy_price_unit, pieces_per_carton, dozens_per_carton, pieces_per_dozen FROM products WHERE id IN (${itemPids.map(() => '?').join(',')})`, itemPids)
       const buyOf = {}
       buys.forEach(b => { buyOf[b.id] = b })
-      const unitCost = (bp, unit, ppc, dpc, ppd) => {
+      const unitCost = (bp, baseUnit, unit, ppc, dpc, ppd) => {
         if (bp <= 0) return 0
-        const per = (Number(ppc) || 0) > 0 ? Number(ppc) : (Number(dpc) || 0) > 0 ? Number(dpc) * (Number(ppd) || 12) : 0
-        if (unit === 'Carton') return bp
-        if (per > 0) {
-          const perPiece = bp / per
-          if (unit === 'Dozen') return perPiece * (Number(ppd) || 12)
-          return perPiece
-        }
-        if (unit === 'Dozen') return bp * (Number(ppd) || 12)
-        return bp
+        const perBase = unitPieces(baseUnit, ppc, dpc, ppd)
+        const perTarget = unitPieces(unit, ppc, dpc, ppd)
+        if (perBase <= 0 || perTarget <= 0) return 0
+        return (bp / perBase) * perTarget
       }
       for (const item of items) {
         const prod = buyOf[Number(item.product_id)]
         if (!prod) continue
-        const cost = unitCost(Number(prod.buy_price) || 0, item.unit || 'Piece', prod.pieces_per_carton, prod.dozens_per_carton, prod.pieces_per_dozen)
+        const cost = unitCost(Number(prod.buy_price) || 0, prod.buy_price_unit || 'Piece', item.unit || 'Piece', prod.pieces_per_carton, prod.dozens_per_carton, prod.pieces_per_dozen)
         const sp = Number(item.price) || 0
         if (cost > 0 && sp > 0 && sp <= cost && String(item.price_type || 'Retail').toLowerCase() === 'optional') {
           return res.status(400).json({ error: `Optional price TSh ${sp.toLocaleString()} must be greater than the buy price for that unit (TSh ${cost.toLocaleString()})` })
@@ -167,7 +226,7 @@ router.post('/', async (req, res) => {
     }
 
     const order = await queryOne('SELECT id, order_no, customer_id, salesman_id, total, payment_method, notes, status, DATE_FORMAT(order_date, "%Y-%m-%d") as order_date FROM orders WHERE id = ?', [orderId])
-    await logAudit(req, 'order.create', `Order ${orderNo} billed for ${customer_name} (TSh ${total}) — awaiting payment`)
+    await logAudit(req, 'order.create', `Order ${orderNo} billed for ${customerName} (TSh ${total}) — awaiting payment`)
     res.status(201).json(order)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -183,9 +242,11 @@ router.put('/:id', adminOnly, async (req, res) => {
     const updates = []
     const params = []
     if (customer_name !== undefined) {
-      let cust = await queryOne('SELECT id FROM customers WHERE name = ?', [customer_name])
+      const newName = typeof customer_name === 'string' ? customer_name.trim() : ''
+      if (!newName) return res.status(400).json({ error: 'Customer name is required' })
+      let cust = await queryOne('SELECT id FROM customers WHERE name = ?', [newName])
       if (!cust) {
-        const r = await execute('INSERT INTO customers (name) VALUES (?)', [customer_name])
+        const r = await execute('INSERT INTO customers (name) VALUES (?)', [newName])
         cust = { id: r.insertId }
       }
       updates.push('customer_id=?')

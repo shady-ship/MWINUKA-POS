@@ -19,57 +19,88 @@ export const modulesOf = (u) =>
 
 export const canAccess = (u, key) => u?.role === 'admin' || modulesOf(u).includes(key)
 
-export function packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
+export function packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const ppc = Number(piecesPerCarton) || 0
   const dpc = Number(dozensPerCarton) || 0
+  const ppd = Number(piecesPerDozen) || 0
   if (ppc > 0) return ppc
-  if (dpc > 0) return dpc * (Number(piecesPerDozen) || 12)
+  if (dpc > 0) return ppd > 0 ? dpc * ppd : 0
   return 0
 }
 
-export function unitBuyCost(buyPrice, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
-  const bp = Number(buyPrice) || 0
-  const ppd = Number(piecesPerDozen) || 12
-  if (bp <= 0) return 0
-  const per = packPerCarton(piecesPerCarton, dozensPerCarton, ppd)
-  if (unit === 'Carton') return bp
-  if (per > 0) {
-    const perPiece = bp / per
-    if (unit === 'Dozen') return perPiece * ppd
-    return perPiece
-  }
-  if (unit === 'Dozen') return bp * ppd
-  return bp
+export const ALL_UNITS = ['Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton']
+
+const UNIT_CODES = {
+  Piece: 'pc',
+  HalfDozen: 'hdzn',
+  Dozen: 'dzn',
+  HalfCarton: 'hcrtn',
+  Carton: 'crtn',
 }
 
-export function piecesForQty(qty, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
+export const unitCode = (unit) => UNIT_CODES[unit] || 'pc'
+
+export function unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  if (unit === 'Piece') return 1
+  const ppd = Number(piecesPerDozen) || 0
+  const perCarton = packPerCarton(piecesPerCarton, dozensPerCarton, ppd)
+  if (unit === 'Dozen') return ppd
+  if (unit === 'HalfDozen') return ppd > 0 && ppd % 2 === 0 ? ppd / 2 : 0
+  if (unit === 'Carton') return perCarton
+  if (unit === 'HalfCarton') return perCarton > 0 && perCarton % 2 === 0 ? perCarton / 2 : 0
+  return 0
+}
+
+export function unitUnusableReason(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const ppd = Number(piecesPerDozen) || 0
+  const perCarton = packPerCarton(piecesPerCarton, dozensPerCarton, ppd)
+  if (unit === 'Dozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd <= 0) return 'pieces per dozen is not set'
+  if (unit === 'HalfDozen' && ppd % 2 !== 0) return `a dozen of ${ppd} pieces cannot be split in half`
+  if (unit === 'Carton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton <= 0) return 'carton size is not set'
+  if (unit === 'HalfCarton' && perCarton % 2 !== 0) return `a carton of ${perCarton} pieces cannot be split in half`
+  return null
+}
+
+export function unitBuyCost(buyPrice, baseUnit, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const bp = Number(buyPrice) || 0
+  if (bp <= 0) return 0
+  const perBase = unitPieces(baseUnit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  const perTarget = unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  if (perBase <= 0 || perTarget <= 0) return 0
+  return (bp / perBase) * perTarget
+}
+
+export function piecesForQty(qty, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const q = Number(qty) || 0
   if (q <= 0) return 0
-  if (unit === 'Dozen') return q * (Number(piecesPerDozen) || 12)
-  if (unit === 'Carton') {
-    const per = packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen)
-    return per > 0 ? q * per : q
-  }
-  return q
+  const per = unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  return per > 0 ? q * per : 0
 }
 
-export function packBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
+export function packBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const total = Math.max(0, Number(stock) || 0)
   const per = packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen)
-  const ppd = Number(piecesPerDozen) || 12
-  if (per > 0) {
+  const ppd = Number(piecesPerDozen) || 0
+  if (per > 0 && ppd > 0) {
     const cartons = Math.floor(total / per)
     const rem = total - cartons * per
     const dozens = Math.floor(rem / ppd)
     const pieces = rem % ppd
-    return { total, cartons, dozens, pieces, perCarton: per }
+    return { total, cartons, dozens, pieces, perCarton: per, perDozen: ppd }
   }
-  const dozens = Math.floor(total / ppd)
-  const pieces = total % ppd
-  return { total, cartons: 0, dozens, pieces, perCarton: 0 }
+  if (per > 0) {
+    const cartons = Math.floor(total / per)
+    return { total, cartons, dozens: 0, pieces: total - cartons * per, perCarton: per, perDozen: ppd }
+  }
+  if (ppd > 0) {
+    return { total, cartons: 0, dozens: Math.floor(total / ppd), pieces: total % ppd, perCarton: 0, perDozen: ppd }
+  }
+  return { total, cartons: 0, dozens: 0, pieces: total, perCarton: 0, perDozen: 0 }
 }
 
-export function priceUnits(prices) {
+export const priceUnits = (prices) => {
   if (!Array.isArray(prices)) return []
   return prices.filter(p => p.retail_price != null || p.wholesale_price != null || p.optional_price != null).map(p => p.unit)
 }
@@ -78,12 +109,12 @@ export function stockPack(product) {
   const total = Math.max(0, Number(product?.stock) || 0)
   const ppc = Number(product?.pieces_per_carton) || 0
   const dpc = Number(product?.dozens_per_carton) || 0
-  const ppd = Number(product?.pieces_per_dozen) || 12
+  const ppd = Number(product?.pieces_per_dozen) || 0
   const units = priceUnits(product?.prices)
   const rawPer = packPerCarton(ppc, dpc, ppd)
-  const hasCarton = rawPer > 0 || units.includes('Carton')
+  const hasCarton = rawPer > 0 || units.includes('Carton') || units.includes('HalfCarton')
   const perCarton = hasCarton ? (rawPer > 0 ? rawPer : 1) : 0
-  const hasDozen = units.includes('Dozen')
+  const hasDozen = units.includes('Dozen') || units.includes('HalfDozen')
   const hasPiece = units.includes('Piece')
   let rem = total
   let cartons = 0
@@ -92,25 +123,34 @@ export function stockPack(product) {
     rem = rem % perCarton
   }
   let dozens = 0
-  if (hasDozen) {
-    dozens = Math.floor(rem / ppd)
-    rem = rem % ppd
+  let halfDozens = 0
+  if (hasDozen && ppd > 0) {
+    const half = ppd % 2 === 0 ? ppd / 2 : 0
+    const preferHalf = half > 0 && !units.includes('Dozen') && units.includes('HalfDozen')
+    if (preferHalf && rem >= half && rem % ppd !== 0) {
+      halfDozens = Math.floor(rem / half)
+      rem = rem % half
+    } else {
+      dozens = Math.floor(rem / ppd)
+      rem = rem % ppd
+    }
   }
-  const pieces = hasPiece ? rem : 0
-  return { total, hasCarton, hasDozen, hasPiece, perCarton, perDozen: ppd, cartons, dozens, pieces }
+  const pieces = hasPiece || !hasDozen || ppd <= 0 ? rem : 0
+  return { total, hasCarton, hasDozen, hasPiece, perCarton, perDozen: ppd, cartons, dozens, halfDozens, pieces }
 }
 
 export function stockParts(product) {
   const b = stockPack(product)
   const parts = []
   if (b.hasCarton && b.cartons > 0) parts.push(`${b.cartons} crtn`)
+  if (b.halfDozens > 0) parts.push(`${b.halfDozens} hdzn`)
   if (b.hasDozen && b.dozens > 0) parts.push(`${b.dozens} dzn`)
   if (b.hasPiece && b.pieces > 0) parts.push(`${b.pieces} pc`)
   if (parts.length === 0) parts.push(`${b.total} pcs`)
   return parts
 }
 
-export function formatPackBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen = 12) {
+export function formatPackBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const { total, cartons, dozens, pieces, perCarton } = packBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen)
   if (!perCarton && total === 0) return '0 pcs'
   const parts = []
@@ -118,4 +158,36 @@ export function formatPackBreakdown(stock, piecesPerCarton, dozensPerCarton, pie
   if (dozens > 0) parts.push(`${dozens} dozen${dozens !== 1 ? 's' : ''}`)
   if (pieces > 0 || parts.length === 0) parts.push(`${pieces} pc${pieces !== 1 ? 's' : ''}`)
   return parts.join(' + ')
+}
+
+const UNIT_HINTS = [
+  { re: /\b(hcrtn|half[\s-]?cartons?)\b/i, unit: 'HalfCarton' },
+  { re: /\b(hdzn|half[\s-]?dozens?)\b/i, unit: 'HalfDozen' },
+  { re: /\b(crtn|cartons?|ctn)\b/i, unit: 'Carton' },
+  { re: /\b(dzns?|dozens?|dzn)\b/i, unit: 'Dozen' },
+  { re: /\b(pcs?|pieces?|piece)\b/i, unit: 'Piece' },
+]
+
+export const STOCK_UNIT_OPTIONS = [
+  { value: 'Piece', short: 'pc', label: 'Pieces (pc)' },
+  { value: 'HalfDozen', short: 'hdzn', label: 'Half Dozens (hdzn)' },
+  { value: 'Dozen', short: 'dzn', label: 'Dozens (dzn)' },
+  { value: 'HalfCarton', short: 'hcrtn', label: 'Half Cartons (hcrtn)' },
+  { value: 'Carton', short: 'crtn', label: 'Cartons (crtn)' },
+]
+
+export const stockUnitShort = (unit) => unitCode(unit)
+
+export function detectUnitFromName(name) {
+  const text = String(name || '')
+  if (!text.trim()) return null
+  for (const { re, unit } of UNIT_HINTS) {
+    if (re.test(text)) return unit
+  }
+  return null
+}
+
+export function packSizeMissing(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  if (unit === 'Carton' || unit === 'HalfCarton') return packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen) <= 0
+  return false
 }

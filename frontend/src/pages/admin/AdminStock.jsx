@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import { Search, AlertTriangle, Package, Edit, X, Plus, Trash2, Download, FileText } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import { formatPackBreakdown, packPerCarton, piecesForQty, stockPack } from '../../constants'
+import { formatPackBreakdown, packPerCarton, piecesForQty, stockPack, unitCode, unitUnusableReason } from '../../constants'
 import { exportObjectRows, stockExportRows } from '../../utils/exportStock'
 import StockReportPrint from '../../components/StockReportPrint'
+
+const ADJ_UNITS = [
+  { value: 'HalfDozen', label: 'Half Dozen' },
+  { value: 'Dozen', label: 'Dozen' },
+  { value: 'HalfCarton', label: 'Half Carton' },
+  { value: 'Carton', label: 'Carton' },
+]
 
 export default function AdminStock() {
   const { products, updateProduct, deleteProduct } = useApp()
@@ -198,12 +205,12 @@ export default function AdminStock() {
                 <select value={adjUnit} onChange={e => setAdjUnit(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                   <option value="Piece">Piece</option>
-                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) >= 12 && <option value="Dozen">Dozen ({Number(editItem.pieces_per_dozen) || 12} pcs)</option>}
-                  {packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen) > 0 && <option value="Carton">Carton ({formatPackBreakdown(packPerCarton(editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen), editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)})</option>}
+                  {ADJ_UNITS.filter(u => u.value !== 'Piece').map(u => !unitUnusableReason(u.value, editItem.pieces_per_carton, editItem.dozens_per_carton, editItem.pieces_per_dozen)
+                    && <option key={u.value} value={u.value}>{u.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-heading mb-1">Quantity ({adjUnit === 'Carton' ? 'cartons' : adjUnit === 'Dozen' ? 'dozens' : 'pieces'})*</label>
+                <label className="block text-xs font-semibold text-heading mb-1">Quantity ({unitCode(adjUnit)})*</label>
                 <input value={adjQty} onChange={e => setAdjQty(e.target.value)} type="number" min="1" placeholder="Enter quantity"
                   className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
               </div>

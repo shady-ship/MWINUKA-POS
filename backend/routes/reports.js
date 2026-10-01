@@ -30,7 +30,7 @@ router.delete('/reset-all', adminOnly, async (req, res) => {
   }
 })
 
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', adminOnly, async (req, res) => {
   try {
     const totalProducts = (await queryOne('SELECT COUNT(*) as count FROM products'))?.count || 0
     const totalStock = (await queryOne('SELECT COALESCE(SUM(stock), 0) as total FROM products'))?.total || 0
@@ -43,7 +43,7 @@ router.get('/dashboard', async (req, res) => {
   }
 })
 
-router.get('/sales', async (req, res) => {
+router.get('/sales', adminOnly, async (req, res) => {
   try {
     const sales = await query(`
       SELECT DATE(o.order_date) as date, SUM(oi.total) as sales
@@ -59,7 +59,7 @@ router.get('/sales', async (req, res) => {
   }
 })
 
-router.get('/top-products', async (req, res) => {
+router.get('/top-products', adminOnly, async (req, res) => {
   try {
     const products = await query(`
       SELECT p.name, SUM(oi.quantity) as sold
@@ -75,7 +75,7 @@ router.get('/top-products', async (req, res) => {
   }
 })
 
-router.get('/low-stock', async (req, res) => {
+router.get('/low-stock', adminOnly, async (req, res) => {
   try {
     const products = await query('SELECT * FROM products WHERE stock <= min_stock ORDER BY stock ASC')
     res.json(products)
@@ -84,7 +84,7 @@ router.get('/low-stock', async (req, res) => {
   }
 })
 
-router.get('/by-date', async (req, res) => {
+router.get('/by-date', adminOnly, async (req, res) => {
   try {
     const { date } = req.query
     if (!date) return res.status(400).json({ error: 'date required (YYYY-MM-DD)' })

@@ -325,6 +325,14 @@ export function AppProvider({ children }) {
     setCart(prev => prev.filter(item => item.lineId !== lineId))
   }
 
+  const setCartItemAltName = (lineId, useAltName) => {
+    setCart(prev => prev.map(item => item.lineId === lineId ? { ...item, useAltName } : item))
+  }
+
+  const setAllCartAltName = (useAltName) => {
+    setCart(prev => prev.map(item => item.alt_name ? { ...item, useAltName } : item))
+  }
+
   const clearCart = () => setCart([])
 
   const placeOrder = async (customerName, salesmanId, paymentMethod, notes) => {
@@ -401,12 +409,20 @@ const updateOrderStatus = async (orderId, status) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_ids: itemIds }),
       })
-      if (!res.ok) { console.error('Pay-items failed:', res.status); return false }
+      if (!res.ok) {
+        let message = `Server rejected the request (HTTP ${res.status})`
+        try {
+          const data = await res.json()
+          if (data?.error) message = data.error
+        } catch { /* response was not JSON */ }
+        if (res.status === 401) message = 'Your session expired. Please sign in again.'
+        if (res.status === 403) message = message === `Server rejected the request (HTTP 403)` ? 'You do not have permission to do that.' : message
+        return { ok: false, error: message }
+      }
       await fetchOrders()
-      return true
+      return { ok: true, error: null }
     } catch (err) {
-      console.error('Failed to mark items paid:', err)
-      return false
+      return { ok: false, error: 'Cannot reach the server. Check that the backend is running.' }
     }
   }
 
@@ -553,7 +569,7 @@ const updateOrderStatus = async (orderId, status) => {
   return (
     <AppContext.Provider value={{
       products, addProduct, updateProduct, deleteProduct, toggleProductActive,
-      cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, updateCartPrice, removeFromCart, clearCart, cartTotal,
+      cart, addToCart, addPackSplit, updateCartQuantity, updateCartItemUnit, updateCartPriceType, setCartItemAltName, setAllCartAltName, updateCartPrice, removeFromCart, clearCart, cartTotal,
       placeOrder, ordersList, updateOrderStatus, markItemsPaid, updateOrder, updateOrderItems, deleteOrder, clearOrders, clearAllData, fetchProducts, fetchOrders,
       customersList, addCustomer, updateCustomer, deleteCustomer, fetchCustomers,
       usersList, addUser, updateUser, deleteUser, fetchUsers,
