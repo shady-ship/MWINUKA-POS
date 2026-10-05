@@ -87,6 +87,9 @@ export default function CreateOrderPage() {
       total: (Number(item.selectedPrice) || 0) * (Number(item.quantity) || 0),
     }))
     const result = await placeOrder(customerName, salesmanId, paymentMethod, orderNotes)
+    if (!result || result.error) {
+      return alert(result?.error || 'The order could not be saved. Please try again.')
+    }
     setPlacedOrder({
       ...(result || {}),
       order_no: result?.order_no || `ORD${String(Date.now()).slice(-6)}`,

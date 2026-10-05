@@ -356,13 +356,31 @@ export function AppProvider({ children }) {
           notes,
         }),
       })
-      const newOrder = await res.json()
+
+      // The server may answer with a JSON error (400/401/500) or, while the POS
+      // server is restarting, with a non-JSON proxy error page. Never treat either
+      // of those as a placed order, and never wipe the cart when it fails.
+      let data = null
+      try { data = await res.json() } catch { data = null }
+
+      if (!res.ok || !data || data.error) {
+        const message = (data && data.error)
+          || `The server could not save this order (HTTP ${res.status}). Please try again.`
+        console.error('Failed to place order:', message)
+        return { error: message }
+      }
+
       setCart([])
       await fetchOrders()
       await fetchProducts()
-      return newOrder
+      return data
     } catch (err) {
       console.error('Failed to place order:', err)
+      return {
+        error: err?.message && err.message !== 'Failed to fetch'
+          ? err.message
+          : 'Could not reach the POS server. Check that it is running, then try again.',
+      }
     }
   }
 

@@ -52,7 +52,8 @@ router.get('/', async (req, res) => {
   try {
     const rows = await query(`
       SELECT o.id, o.order_no, o.customer_id, o.salesman_id, o.total, o.payment_method, o.notes, o.status,
-             DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date, o.created_at,
+             DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date,
+             DATE_FORMAT(o.created_at, '%H:%i') as order_time, o.created_at,
              u.name as salesman_name, c.name as customer_name,
 (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) AS item_count,
              (SELECT COALESCE(SUM(CASE WHEN oi.paid = 1 THEN oi.quantity ELSE 0 END), 0) FROM order_items oi WHERE oi.order_id = o.id) AS paid_count,
@@ -70,7 +71,8 @@ router.get('/', async (req, res) => {
 
 const singleOrderSelect = `
   SELECT o.id, o.order_no, o.customer_id, o.salesman_id, o.total, o.payment_method, o.notes, o.status,
-         DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date, o.created_at,
+         DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date,
+         DATE_FORMAT(o.created_at, '%H:%i') as order_time, o.created_at,
          u.name as salesman_name, c.name as customer_name,
 (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) AS item_count,
          (SELECT COALESCE(SUM(CASE WHEN oi.paid = 1 THEN oi.quantity ELSE 0 END), 0) FROM order_items oi WHERE oi.order_id = o.id) AS paid_count,
@@ -233,7 +235,7 @@ router.post('/', async (req, res) => {
       await execute('UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?', [pieces, item.product_id])
     }
 
-    const order = await queryOne('SELECT id, order_no, customer_id, salesman_id, total, payment_method, notes, status, DATE_FORMAT(order_date, "%Y-%m-%d") as order_date FROM orders WHERE id = ?', [orderId])
+    const order = await queryOne('SELECT id, order_no, customer_id, salesman_id, total, payment_method, notes, status, DATE_FORMAT(order_date, "%Y-%m-%d") as order_date, DATE_FORMAT(created_at, "%H:%i") as order_time FROM orders WHERE id = ?', [orderId])
     await logAudit(req, 'order.create', `Order ${orderNo} billed for ${customerName} (TSh ${total}) — awaiting payment`)
     res.status(201).json(order)
   } catch (err) {

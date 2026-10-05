@@ -27,6 +27,11 @@ echo ============================================
 echo   MWINUKA POS - System Running!
 echo   Frontend: http://localhost:5173
 echo   Backend:  http://localhost:5000
+echo.
+echo   To connect from another device on the same Wi-Fi:
+echo   Run "ipconfig" and open http://YOUR-IPv4-ADDRESS:5173
+echo   Example: http://192.168.1.116:5173
+echo   Allow Node.js through Windows Firewall on Private networks if prompted.
 echo ============================================
 echo   Press any key to stop all servers...
 echo ============================================

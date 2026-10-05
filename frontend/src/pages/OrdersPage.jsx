@@ -13,7 +13,7 @@ function localDate(d) {
 }
 
 export default function OrdersPage() {
-  const { ordersList, markItemsPaid, updateOrder, updateOrderItems, products } = useApp()
+  const { ordersList, markItemsPaid, updateOrder, updateOrderItems, products, settings } = useApp()
   const [filter, setFilter] = useState('All')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -219,8 +219,21 @@ export default function OrdersPage() {
   ]
 
   const sumTotal = (arr) => arr.reduce((s, o) => s + (Number(o.total) || 0), 0)
+  const itemAmount = (item) => Number(item.total != null
+    ? item.total
+    : Number(item.unit_price || 0) * Number(item.quantity || 0))
+  const orderSubtotal = viewItems.reduce((sum, item) => sum + itemAmount(item), 0)
+  const orderTotal = Number(viewOrder?.total ?? orderSubtotal)
+  const persistedPaidTotal = viewItems
+    .filter(item => item.paid)
+    .reduce((sum, item) => sum + itemAmount(item), 0)
+  const paidTotal = viewItems
+    .filter(item => paidIds.includes(item.id))
+    .reduce((sum, item) => sum + itemAmount(item), 0)
+  const currency = (settings.currency || 'TSh').toUpperCase()
+  const contact = [settings.address, settings.phone ? `Tel: ${settings.phone}` : null, settings.email].filter(Boolean)
   const billedTotal = sumTotal(filtered.filter(o => o.status !== 'Cancelled'))
-  const paidTotal = filtered.reduce((s, o) => s + (Number(o.paid_total) || 0), 0)
+  const listPaidTotal = filtered.reduce((s, o) => s + (Number(o.paid_total) || 0), 0)
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -339,7 +352,7 @@ export default function OrdersPage() {
               <tr className="bg-gray-50 border-t-2 border-line">
                 <td colSpan={4} className="px-4 py-3 text-xs font-bold text-heading uppercase tracking-wide">Total</td>
                 <td className="px-4 py-3 text-center text-sm font-bold text-warning">TSh {billedTotal.toLocaleString()}</td>
-                <td className="px-4 py-3 text-center text-sm font-bold text-success">TSh {paidTotal.toLocaleString()}</td>
+                <td className="px-4 py-3 text-center text-sm font-bold text-success">TSh {listPaidTotal.toLocaleString()}</td>
                 <td colSpan={2} />
               </tr>
             </tfoot>
@@ -350,84 +363,120 @@ export default function OrdersPage() {
         </div>
 
         {viewOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-heading">ORDER DETAILS - {viewOrder.order_no}</h3>
-                <button onClick={() => { setViewOrder(null); setViewItems([]) }} className="text-muted hover:text-heading"><X className="w-4 h-4" /></button>
-              </div>
-              <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
-                <div><span className="text-muted">Customer:</span> <span className="font-semibold text-heading">{viewOrder.customer_name}</span></div>
-                <div><span className="text-muted">Salesman:</span> <span className="font-semibold text-heading">{viewOrder.salesman_name}</span></div>
-                <div><span className="text-muted">Date:</span> <span className="font-semibold text-heading">{viewOrder.order_date}</span></div>
-                <div><span className="text-muted">Payment:</span> <span className="font-semibold text-heading">{viewOrder.payment_method}</span></div>
-                <div><span className="text-muted">Status:</span> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${viewOrder.status === 'Completed' ? 'bg-green-100 text-success' : viewOrder.status === 'Pending' ? 'bg-yellow-100 text-warning' : 'bg-red-100 text-danger'}`}>{viewOrder.status}</span></div>
-              </div>
-              {viewOrder.notes && <p className="text-xs text-muted mb-3">Notes: {viewOrder.notes}</p>}
-              <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
-                <span className="inline-block px-2.5 py-1 rounded-full bg-yellow-100 text-warning font-bold">Billed: {viewItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0)} units · TSh {(viewItems.reduce((s, i) => s + (Number(i.total) || 0), 0)).toLocaleString()}</span>
-                <span className="inline-block px-2.5 py-1 rounded-full bg-green-100 text-success font-bold">Paid: {viewItems.filter(i => i.paid).length} products · TSh {(viewItems.filter(i => i.paid).reduce((s, i) => s + (Number(i.total) || 0), 0)).toLocaleString()}</span>
-              </div>
-              <div className="overflow-hidden rounded-lg border border-line mb-4">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-line">
-                      <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted">Item</th>
-                      <th className="text-center px-3 py-2 text-[10px] font-semibold text-muted">Qty</th>
-                      <th className="text-center px-3 py-2 text-[10px] font-semibold text-muted">Unit</th>
-                      <th className="text-right px-3 py-2 text-[10px] font-semibold text-muted">Subtotal</th>
-                      <th className="text-center px-3 py-2 text-[10px] font-semibold text-muted">Paid?</th>
-                    </tr>
-                  </thead>
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
+            <div className="relative my-auto w-full max-w-xl rounded-xl bg-white p-3 shadow-xl sm:p-5">
+              <button
+                onClick={() => { setViewOrder(null); setViewItems([]) }}
+                className="absolute right-4 top-4 z-10 rounded-full bg-white p-2 text-muted shadow-sm hover:text-heading"
+                aria-label="Close order details"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <article className="invoice order-view-invoice">
+                <header className="inv-head">
+                  <h1 className="inv-shop">{settings.business_name || 'MWINUKA ENTERPRISES CO. LTD'}</h1>
+                  {settings.tagline && <p className="inv-tagline">{settings.tagline}</p>}
+                  {contact.map(line => <p key={line} className="inv-contact">{line}</p>)}
+                </header>
+
+                <div className="inv-docbar">
+                  <span className="inv-docbar-title">INVOICE</span>
+                  <span className="inv-docbar-no">{viewOrder.order_no}</span>
+                </div>
+
+                <dl className="inv-meta">
+                  <div className="inv-meta-row"><dt>Date</dt><dd>{viewOrder.order_date || '—'}</dd></div>
+                  <div className="inv-meta-row"><dt>Time</dt><dd>{viewOrder.order_time || '—'}</dd></div>
+                  <div className="inv-meta-row"><dt>Served by</dt><dd>{viewOrder.salesman_name || '—'}</dd></div>
+                  <div className="inv-meta-row"><dt>Customer</dt><dd>{viewOrder.customer_name || 'Walk-in'}</dd></div>
+                  <div className="inv-meta-row"><dt>Payment</dt><dd>{viewOrder.payment_method || 'Cash'}</dd></div>
+                  <div className="inv-meta-row"><dt>Status</dt><dd>{viewOrder.status || 'Pending'}</dd></div>
+                </dl>
+
+                <div className="inv-items-head order-view-items-head" aria-hidden="true">
+                  <span className="inv-c-desc">ITEM</span>
+                  <span className="inv-c-qty">QTY</span>
+                  <span className="inv-c-price">PRICE</span>
+                  <span className="inv-c-total">AMOUNT</span>
+                  <span className="order-view-paid-label">PAID</span>
+                </div>
+
+                <table className="inv-items">
                   <tbody>
                     {viewItems.map(item => {
                       const checked = paidIds.includes(item.id)
                       return (
-                        <tr key={item.id} className={`border-b border-line ${checked ? 'bg-green-50' : ''}`}>
-                          <td className="px-3 py-2 text-xs text-heading">{item.product_name || `Product #${item.product_id}`}</td>
-                          <td className="px-3 py-2 text-xs text-heading text-center">{item.quantity}</td>
-                          <td className="px-3 py-2 text-xs text-heading text-center">{unitCode(item.unit)}</td>
-                          <td className="px-3 py-2 text-xs font-semibold text-heading text-right">TSh {Number(item.total).toLocaleString()}</td>
-                          <td className="px-3 py-2 text-center">
+                        <tr key={item.id} className={`inv-item order-view-item ${checked ? 'order-view-item-paid' : ''}`}>
+                          <td className="inv-c-desc">{item.product_name || `Product #${item.product_id}`}</td>
+                          <td className="inv-c-qty">
+                            <span className="inv-qty-num">{item.quantity}</span>
+                            <span className="inv-qty-unit">{unitCode(item.unit)}</span>
+                          </td>
+                          <td className="inv-c-price">{Number(item.unit_price || 0).toLocaleString()}</td>
+                          <td className="inv-c-total">{itemAmount(item).toLocaleString()}</td>
+                          <td className="order-view-paid-cell">
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={() => togglePaid(item.id)}
-                              className="w-4 h-4 accent-green-600 cursor-pointer"
-                              title="Mark as paid"
+                              aria-label={`Mark ${item.product_name || 'item'} paid`}
+                              className="h-3.5 w-3.5 cursor-pointer accent-green-600"
                             />
                           </td>
                         </tr>
                       )
                     })}
                     {viewItems.length === 0 && (
-                      <tr><td colSpan={5} className="py-8 text-center text-xs text-muted">No items recorded.</td></tr>
+                      <tr className="inv-item order-view-item">
+                        <td className="order-view-empty" colSpan={5}>No items recorded.</td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
-              </div>
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3 mb-4">
-                <p className="text-[11px] font-semibold text-success mb-2 uppercase tracking-wide">PAID ITEMS — tick the products that have been paid</p>
-                <div className="flex items-center justify-between">
+
+                <div className="inv-totals">
+                  <div className="inv-total-row"><span>Subtotal</span><span>{currency} {orderSubtotal.toLocaleString()}</span></div>
+                  {orderSubtotal > orderTotal && (
+                    <div className="inv-total-row inv-total-disc"><span>Discount</span><span>−{currency} {(orderSubtotal - orderTotal).toLocaleString()}</span></div>
+                  )}
+                  <div className="inv-total-row">
+                    <span>Paid</span>
+                    <span>{currency} {persistedPaidTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="inv-total-row inv-total-grand">
+                    <span>Total</span>
+                    <span>{currency} {orderTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+                <footer className="inv-foot">
+                  {settings.receipt_thankyou_en && <p className="inv-foot-thanks">{settings.receipt_thankyou_en}</p>}
+                  {settings.receipt_thankyou && <p className="inv-foot-thanks-alt">{settings.receipt_thankyou}</p>}
+                </footer>
+              </article>
+
+              {viewOrder.notes && <p className="mx-auto mt-3 max-w-md text-xs text-muted"><b>Notes:</b> {viewOrder.notes}</p>}
+              <div className="order-view-payment mx-auto mt-3 max-w-md">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-heading">
-                    Selected: <span className="font-bold text-success">{paidIds.length}/{viewItems.length}</span> products · <span className="font-bold text-success">TSh {viewItems.filter(i => paidIds.includes(i.id)).reduce((s, i) => s + (Number(i.total) || 0), 0).toLocaleString()}</span>
+                    Selected for payment: <b className="text-success">{paidIds.length}/{viewItems.length}</b> items · <b className="text-success">{currency} {paidTotal.toLocaleString()}</b>
                   </span>
                   <button
                     onClick={savePaid}
                     disabled={savingPay || viewItems.length === 0}
-                    className="bg-success text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="rounded-lg bg-success px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {savingPay ? 'Saving…' : 'SAVE PAID ITEMS'}
+                    {savingPay ? 'Saving…' : 'SAVE PAYMENT'}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted mt-2">Order stays <b className="text-warning">Billed</b> until every item is marked paid — then it becomes <b className="text-success">Completed</b>.</p>
+                <p className="mt-2 text-[10px] text-muted">Order stays billed until every item is marked paid, then it becomes completed.</p>
               </div>
-              <div className="flex items-center justify-between border-t border-line pt-3">
-                <button onClick={() => { setPrintOrder(viewOrder); setPrintItems(viewItems) }} className="flex items-center gap-1.5 bg-accent text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors">
-                  <Printer className="w-3.5 h-3.5" /> Print Copy
+              <div className="mx-auto mt-3 flex max-w-md items-center justify-between gap-3 border-t border-line pt-3">
+                <button onClick={() => { setPrintOrder(viewOrder); setPrintItems(viewItems) }} className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700">
+                  <Printer className="h-3.5 w-3.5" /> Print Copy
                 </button>
-                <span className="text-xs font-bold text-heading">BILLED TOTAL</span>
-                <span className="text-sm font-bold text-accent">TSh {Number(viewOrder.total).toLocaleString()}</span>
+                <button onClick={() => { setViewOrder(null); setViewItems([]) }} className="rounded-lg border border-line px-4 py-2 text-xs font-semibold text-heading hover:bg-gray-50">
+                  Close
+                </button>
               </div>
             </div>
           </div>

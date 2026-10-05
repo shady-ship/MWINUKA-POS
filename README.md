@@ -95,6 +95,16 @@ npm run dev:frontend
 
 On Windows with XAMPP configured, `start.bat` can start the database, backend, and frontend together.
 
+### Access from another device on the same network
+
+Start the application with `start.bat` or `npm run dev`, then find the host computer's IPv4 address with `ipconfig`. On another device connected to the same Wi-Fi/LAN, open:
+
+```text
+http://<host-computer-ip>:5173
+```
+
+For example, if `ipconfig` shows `192.168.1.116`, use `http://192.168.1.116:5173`. If Windows Firewall prompts, allow Node.js on **Private networks**. The frontend proxies `/api` requests to the backend, so other devices only need access to frontend port `5173`. This makes the app available on the local network; it does not publish it to the internet.
+
 ## Development Accounts
 
 The first backend startup seeds these accounts when the `users` table is empty:
@@ -149,7 +159,6 @@ frontend/
   src/pages/       Sales, inventory, reports, and admin screens
   src/App.jsx      Frontend routing and application shell
 ```
-
 
 
 

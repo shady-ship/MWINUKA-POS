@@ -97,7 +97,7 @@ Holds `products`, `ordersList`, `customers`, `settings`, `cart`. The load effect
 iOS-style design tokens in `index.css` (`@theme`): primary `#007AFF`, surface `#F2F2F7`, danger `#FF3B30`, success `#34C759`, warning `#FF9500`, system font stack, safe-area helpers (`safe-bottom`, `pb-safe`). Responsive: sidebar hidden below `lg` → iOS bottom tab bar; tables use `overflow-x-auto`; top bar has a menu dropdown (granted Admin modules + Sales links) and a live product search.
 
 ### 2.6 Receipt Printing (`components/InvoicePrint.jsx`)
-80 mm printable layout (`index.css` classes), themed print stylesheet (`@media print`): hides the app, shows only `.print-area`, black header/table, zebra rows, boxed BALANCE block. Daily reports use `.report` / `.report-table` print styles.
+80 mm centered printable invoice matching the receipt layout, with business details, order metadata, item/price columns, totals, and bilingual thank-you footer. The print-only invoice is portaled outside the app root so the application layout cannot create extra blank pages. Daily reports use `.report` / `.report-table` print styles.
 
 ---
 

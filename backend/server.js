@@ -35,6 +35,10 @@ app.use('/api', (req, res, next) => {
 })
 
 async function start() {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is missing. Set it in backend/.env before starting the server.')
+  }
+
   await initDb()
 
   const { default: seed } = await import('./config/seed.js')
@@ -57,8 +61,8 @@ async function start() {
     res.sendFile(path.join(DIST, 'index.html'))
   })
 
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`)
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`)
   })
 }
 
