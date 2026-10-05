@@ -105,16 +105,8 @@ http://<host-computer-ip>:5173
 
 For example, if `ipconfig` shows `192.168.1.116`, use `http://192.168.1.116:5173`. If Windows Firewall prompts, allow Node.js on **Private networks**. The frontend proxies `/api` requests to the backend, so other devices only need access to frontend port `5173`. This makes the app available on the local network; it does not publish it to the internet.
 
-## Development Accounts
 
-The first backend startup seeds these accounts when the `users` table is empty:
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Administrator | `admin@mwinuka.co.tz` | ` |
-| Sales staff | `john@mwinuka.co.tz` | `` |
-
-These credentials are for local development only. Change or remove them before deploying.
 
 ## Available Scripts
 
