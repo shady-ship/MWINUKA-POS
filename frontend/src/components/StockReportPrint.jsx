@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useApp } from '../context/useApp'
 import { stockPack, unitCode } from '../constants'
 
@@ -35,94 +36,97 @@ export default function StockReportPrint({ products, title, onClose }) {
         </div>
       </div>
 
-      <div className="print-area">
-        <div className="report">
-          <div className="report-header">
-            <div className="report-logo">
-              <svg viewBox="0 0 512 512" width="34" height="34">
-                <defs>
-                  <linearGradient id="lgBg" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stopColor="#11406f"/>
-                    <stop offset="0.55" stopColor="#0b2c50"/>
-                    <stop offset="1" stopColor="#071a33"/>
-                  </linearGradient>
-                  <linearGradient id="lgGold" x1="0" y1="0" x2="0.2" y2="1">
-                    <stop offset="0" stopColor="#f3d98d"/>
-                    <stop offset="0.5" stopColor="#d9b458"/>
-                    <stop offset="1" stopColor="#b08a2e"/>
-                  </linearGradient>
-                </defs>
-                <rect x="10" y="10" width="492" height="492" rx="108" fill="url(#lgBg)" stroke="#c8a03c" strokeWidth="4"/>
-                <circle cx="256" cy="212" r="52" fill="url(#lgGold)" opacity="0.92"/>
-                <rect x="120" y="300" width="72" height="112" rx="10" fill="url(#lgGold)"/>
-                <rect x="220" y="238" width="72" height="174" rx="10" fill="url(#lgGold)"/>
-                <rect x="320" y="176" width="72" height="236" rx="10" fill="url(#lgGold)"/>
-                <rect x="120" y="426" width="272" height="10" rx="5" fill="url(#lgGold)"/>
-              </svg>
+      {createPortal(
+        <div className="print-area">
+          <div className="report">
+            <div className="report-header">
+              <div className="report-logo">
+                <svg viewBox="0 0 512 512" width="34" height="34">
+                  <defs>
+                    <linearGradient id="lgBg" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#11406f"/>
+                      <stop offset="0.55" stopColor="#0b2c50"/>
+                      <stop offset="1" stopColor="#071a33"/>
+                    </linearGradient>
+                    <linearGradient id="lgGold" x1="0" y1="0" x2="0.2" y2="1">
+                      <stop offset="0" stopColor="#f3d98d"/>
+                      <stop offset="0.5" stopColor="#d9b458"/>
+                      <stop offset="1" stopColor="#b08a2e"/>
+                    </linearGradient>
+                  </defs>
+                  <rect x="10" y="10" width="492" height="492" rx="108" fill="url(#lgBg)" stroke="#c8a03c" strokeWidth="4"/>
+                  <circle cx="256" cy="212" r="52" fill="url(#lgGold)" opacity="0.92"/>
+                  <rect x="120" y="300" width="72" height="112" rx="10" fill="url(#lgGold)"/>
+                  <rect x="220" y="238" width="72" height="174" rx="10" fill="url(#lgGold)"/>
+                  <rect x="320" y="176" width="72" height="236" rx="10" fill="url(#lgGold)"/>
+                  <rect x="120" y="426" width="272" height="10" rx="5" fill="url(#lgGold)"/>
+                </svg>
+              </div>
+              <div className="report-business">
+                <h1 className="report-company">{(settings.business_name || 'Mwinuka Enterprises Co Ltd').toUpperCase()}</h1>
+                {settings.tagline && <p className="report-tagline">{settings.tagline}</p>}
+                {settings.address && <p className="report-contact">{settings.address}</p>}
+                {(settings.phone || settings.email) && (
+                  <p className="report-contact">
+                    {settings.phone && `Tel: ${settings.phone}`}
+                    {settings.phone && settings.email && ' | '}
+                    {settings.email && `Email: ${settings.email}`}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="report-business">
-              <h1 className="report-company">{(settings.business_name || 'Mwinuka Enterprises Co Ltd').toUpperCase()}</h1>
-              {settings.tagline && <p className="report-tagline">{settings.tagline}</p>}
-              {settings.address && <p className="report-contact">{settings.address}</p>}
-              {(settings.phone || settings.email) && (
-                <p className="report-contact">
-                  {settings.phone && `Tel: ${settings.phone}`}
-                  {settings.phone && settings.email && ' | '}
-                  {settings.email && `Email: ${settings.email}`}
-                </p>
-              )}
+
+            <hr className="report-divider" />
+
+            <h2 className="report-title">{title.toUpperCase()}</h2>
+
+            <div className="report-info">
+              <p><span className="report-label">Generated:</span> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+              <p><span className="report-label">Products:</span> {rows.length}</p>
             </div>
-          </div>
 
-          <hr className="report-divider" />
+            <hr className="report-divider" />
 
-          <h2 className="report-title">{title.toUpperCase()}</h2>
-
-          <div className="report-info">
-            <p><span className="report-label">Generated:</span> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-            <p><span className="report-label">Products:</span> {rows.length}</p>
-          </div>
-
-          <hr className="report-divider" />
-
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>PRODUCT</th>
-                <th>PRICES (TSh)</th>
-                <th>CRTN</th>
-                <th>DZN</th>
-                <th>PCS</th>
-                <th>TOTAL (PCS)</th>
-                <th>MIN STOCK</th>
-                <th>STATUS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id}>
-                  <td>{r.i}</td>
-                  <td>{r.name}</td>
-                  <td>{r.prices}</td>
-                  <td>{r.bd.hasCarton ? r.bd.cartons : '—'}</td>
-                  <td>{r.bd.hasDozen ? r.bd.dozens : '—'}</td>
-                  <td>{r.bd.hasPiece ? r.bd.pieces : '—'}</td>
-                  <td>{r.st}</td>
-                  <td>{r.min}</td>
-                  <td>{r.status}</td>
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>PRODUCT</th>
+                  <th>PRICES (TSh)</th>
+                  <th>CRTN</th>
+                  <th>DZN</th>
+                  <th>PCS</th>
+                  <th>TOTAL (PCS)</th>
+                  <th>MIN STOCK</th>
+                  <th>STATUS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id}>
+                    <td>{r.i}</td>
+                    <td>{r.name}</td>
+                    <td>{r.prices}</td>
+                    <td>{r.bd.hasCarton ? r.bd.cartons : '—'}</td>
+                    <td>{r.bd.hasDozen ? r.bd.dozens : '—'}</td>
+                    <td>{r.bd.hasPiece ? r.bd.pieces : '—'}</td>
+                    <td>{r.st}</td>
+                    <td>{r.min}</td>
+                    <td>{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-          <hr className="report-divider" />
+            <hr className="report-divider" />
 
-          <div className="invoice-footer">
-            {settings.receipt_thankyou_en && <p className="invoice-thankyou-en">{settings.receipt_thankyou_en}</p>}
+            <div className="invoice-footer">
+              {settings.receipt_thankyou_en && <p className="invoice-thankyou-en">{settings.receipt_thankyou_en}</p>}
+            </div>
           </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }
