@@ -79,6 +79,21 @@ export function piecesForQty(qty, unit, piecesPerCarton, dozensPerCarton, pieces
   return per > 0 ? q * per : 0
 }
 
+/**
+ * Inverse of piecesForQty: expresses a stored piece count in the given unit.
+ * Used when loading a saved product (stock is stored in pieces) so the form shows
+ * the quantity in the unit it was entered with, instead of re-multiplying on save.
+ * When the unit has no pack size, the value is already pieces and is returned as-is.
+ */
+export function qtyFromPieces(pieces, unit, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
+  const n = Number(pieces)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  const per = unitPieces(unit, piecesPerCarton, dozensPerCarton, piecesPerDozen)
+  if (per <= 0) return String(n)
+  // Trim float noise but keep exact quotients exact, so save -> load round-trips to the same number.
+  return String(Math.round((n / per) * 1e6) / 1e6)
+}
+
 export function packBreakdown(stock, piecesPerCarton, dozensPerCarton, piecesPerDozen) {
   const total = Math.max(0, Number(stock) || 0)
   const per = packPerCarton(piecesPerCarton, dozensPerCarton, piecesPerDozen)

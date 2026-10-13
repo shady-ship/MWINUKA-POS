@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Search, Edit, Trash2, X, Power, Copy } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import { piecesForQty, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost, detectUnitFromName, stockUnitShort, STOCK_UNIT_OPTIONS, packSizeMissing, unitUnusableReason } from '../../constants'
+import { piecesForQty, qtyFromPieces, unitPieces, packPerCarton, formatPackBreakdown, stockParts, unitBuyCost, detectUnitFromName, stockUnitShort, STOCK_UNIT_OPTIONS, packSizeMissing, unitUnusableReason } from '../../constants'
 
 const UNIT_ROWS = ['Piece', 'HalfDozen', 'Dozen', 'HalfCarton', 'Carton']
 const PRICE_FIELDS = ['retail', 'wholesale', 'optional']
@@ -36,6 +36,28 @@ export default function AdminProducts() {
     const detected = detectUnitFromName(value)
     setForm(prev => ({ ...prev, name: value }))
     if (detected && !unitTouched) setCountedIn(detected)
+  }
+
+  // Switching the stock unit has to re-express the entered quantities in the new unit.
+  // Without this the same number silently changes meaning (720 pc becomes 720 crtn)
+  // and gets multiplied by the pack size on the next save.
+  const changeCountedIn = (next) => {
+    setUnitTouched(true)
+    if (next === countedIn) return
+    const ppc = form.piecesPerCarton
+    const dpc = form.dozensPerCarton
+    const ppd = form.piecesPerDozen
+    const fromPer = unitPieces(countedIn, ppc, dpc, ppd)
+    const toPieces = (value) => {
+      const n = Number(value) || 0
+      return fromPer > 0 ? n * fromPer : n
+    }
+    setForm({
+      ...form,
+      stock: qtyFromPieces(toPieces(form.stock), next, ppc, dpc, ppd),
+      min_stock: qtyFromPieces(toPieces(form.min_stock), next, ppc, dpc, ppd),
+    })
+    setCountedIn(next)
   }
 
   const packArgs = [form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen]
@@ -99,12 +121,18 @@ export default function AdminProducts() {
       }
     })
     const pricesWithHalfDefaults = deriveHalfPrices(formPrices, p.pieces_per_carton, p.dozens_per_carton, p.pieces_per_dozen)
+    // stock/min_stock are stored in PIECES, but the form edits them in countedInUnit
+    // (buy_price_unit). Convert back to that unit here - otherwise reloading a saved
+    // product shows pieces under a carton label and the next save multiplies again
+    // (10 crtn -> 720 pc -> 51,840 pc).
+    const countedInUnit = STOCK_UNIT_OPTIONS.some(o => o.value === p.buy_price_unit) ? p.buy_price_unit : 'Piece'
+    const pack = [p.pieces_per_carton, p.dozens_per_carton, p.pieces_per_dozen]
     setForm({
       name: p.name,
       altName: p.alt_name || '',
       category: p.category || '',
-      stock: String(p.stock ?? ''),
-      min_stock: String(p.min_stock ?? 20),
+      stock: qtyFromPieces(p.stock, countedInUnit, ...pack),
+      min_stock: qtyFromPieces(p.min_stock ?? 20, countedInUnit, ...pack),
       buyPrice: String(p.buy_price ?? 0),
       piecesPerCarton: String(p.pieces_per_carton ?? ''),
       dozensPerCarton: String(p.dozens_per_carton ?? ''),
@@ -112,7 +140,7 @@ export default function AdminProducts() {
       prices: pricesWithHalfDefaults,
     })
     setEditId(p.id)
-    setCountedIn(STOCK_UNIT_OPTIONS.some(o => o.value === p.buy_price_unit) ? p.buy_price_unit : 'Piece')
+    setCountedIn(countedInUnit)
     setUnitTouched(true)
     setError('')
     setModal('edit')
@@ -358,7 +386,7 @@ export default function AdminProducts() {
                         const active = countedIn === o.value
                         const blocked = active ? unitUnusableReason(o.value, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen) : null
                         return (
-                          <button type="button" key={o.value} onClick={() => { setCountedIn(o.value); setUnitTouched(true) }}
+                          <button type="button" key={o.value} onClick={() => changeCountedIn(o.value)}
                             className={`flex-1 min-w-[92px] px-3 py-2 rounded-lg border text-left transition-colors ${active ? 'border-primary bg-primary text-white' : 'border-line bg-white hover:border-primary'}`}>
                             <span className="block text-xs font-bold">{o.short}</span>
                             <span className={`block text-[10px] ${active ? 'text-white/80' : 'text-muted'}`}>{o.label.replace(/\s*\(.*\)/, '')}</span>
