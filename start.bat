@@ -1,9 +1,15 @@
 @echo off
 echo Starting MySQL...
-netstat -ano | findstr ":3306" >nul 2>&1
+netstat -ano | findstr ":3306.*LISTENING" >nul 2>&1
 if errorlevel 1 (
-    start "" "C:\xampp\mysql\bin\mysqld.exe" --defaults-file="C:\xampp\mysql\bin\my.ini"
-    timeout /t 5 /nobreak >nul
+    tasklist /fi "imagename eq mysqld.exe" 2>nul | findstr /i "mysqld.exe" >nul 2>&1
+    if errorlevel 1 (
+        start "" "C:\xampp\mysql\bin\mysqld.exe" --defaults-file="C:\xampp\mysql\bin\my.ini"
+        timeout /t 5 /nobreak >nul
+    ) else (
+        echo   mysqld is already starting - waiting for it instead of starting a second one.
+        timeout /t 6 /nobreak >nul
+    )
 )
 
 echo Stopping old servers...
@@ -29,8 +35,8 @@ echo   Frontend: http://localhost:5173
 echo   Backend:  http://localhost:5000
 echo.
 echo   To connect from another device on the same Wi-Fi:
-echo   Run "ipconfig" and open http://YOUR-IPv4-ADDRESS:5173
-echo   Example: http://192.168.1.116:5173
+echo   Open http://YOUR-IPv4-ADDRESS:5173
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do echo   Detected: http://%%a:5173
 echo   Allow Node.js through Windows Firewall on Private networks if prompted.
 echo ============================================
 echo   Press any key to stop all servers...
