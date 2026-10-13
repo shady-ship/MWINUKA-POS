@@ -65,10 +65,16 @@ export default function AdminProducts() {
   const minStockPieces = piecesForQty(Number(form.min_stock || 0), countedIn, ...packArgs)
   const cartonUnset = packSizeMissing(countedIn, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)
   const dozenCount = Number(form.piecesPerDozen) || 0
+  // Pack size is optional: a product may have no pack at all, and one field is enough.
+  // Pieces per Dozen is only demanded when a dozen-sized unit is actually in play -
+  // as the stock unit, or as an enabled price unit. Merely filling "Dozens per
+  // Carton" no longer forces a second field; it just leaves carton conversions
+  // unavailable until Pieces per Dozen is added.
   const dozenUsed = countedIn === 'Dozen' || countedIn === 'HalfDozen'
-    || form.dozensPerCarton !== ''
     || form.prices.some(p => p.enabled && (p.unit === 'Dozen' || p.unit === 'HalfDozen'))
   const dozenNeeded = dozenUsed && dozenCount <= 0
+  // "Dozens per Carton" alone cannot produce a carton size without Pieces per Dozen.
+  const cartonsNeedDozens = Number(form.dozensPerCarton) > 0 && Number(form.piecesPerCarton) <= 0 && dozenCount <= 0
 
   const buyCostFor = (unit) => Number(form.buyPrice) > 0
     ? unitBuyCost(form.buyPrice, countedIn, unit, form.piecesPerCarton, form.dozensPerCarton, form.piecesPerDozen)
@@ -409,7 +415,7 @@ export default function AdminProducts() {
                   {Number(form.stock || 0) > 0 && (
                     <p className={`text-[10px] mt-0.5 ${cartonUnset ? 'text-danger font-semibold' : 'text-muted'}`}>
                       {cartonUnset
-                        ? `No carton size set — ${form.stock} crtn would be saved as ${form.stock} pc. Enter Pieces per Carton below.`
+                        ? `No carton size set — saving is blocked until you enter Pieces per Carton below, or switch the stock unit to pc.`
                         : `= ${stockPieces.toLocaleString()} pc (${formatPackBreakdown(stockPieces, ...packArgs)})`}
                     </p>
                   )}
@@ -440,7 +446,7 @@ export default function AdminProducts() {
 
               <div>
                 <p className="text-xs font-bold text-heading mb-2">PACK SIZE (Optional)</p>
-                <p className="text-[10px] text-muted mb-2">How the product is sealed. Enables the pack-split button on the order screen.</p>
+                <p className="text-[10px] text-muted mb-2">Optional — leave all three empty for loose or unpackaged products. Fill whichever applies; one field is enough. Enables the pack-split button on the order screen.</p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-heading mb-1">Pieces per Carton</label>
@@ -452,7 +458,11 @@ export default function AdminProducts() {
                     <label className="block text-xs font-semibold text-heading mb-1">Dozens per Carton</label>
                     <input value={form.dozensPerCarton} onChange={e => setForm({ ...form, dozensPerCarton: e.target.value })} type="number" min="0" placeholder="e.g. 12"
                       className="w-full px-4 py-2 rounded-lg border border-line text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-                    <p className="text-[10px] text-muted mt-0.5">How many dozens are in one carton</p>
+                    <p className={`text-[10px] mt-0.5 ${cartonsNeedDozens ? 'text-danger font-semibold' : 'text-muted'}`}>
+                      {cartonsNeedDozens
+                        ? 'Also needs Pieces per Dozen to work out the carton size'
+                        : 'How many dozens are in one carton'}
+                    </p>
                   </div>
                   <div>
                     <label className={`block text-xs font-semibold mb-1 ${dozenNeeded ? 'text-danger' : 'text-heading'}`}>Pieces per Dozen</label>
