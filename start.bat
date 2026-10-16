@@ -34,9 +34,14 @@ echo   MWINUKA POS - System Running!
 echo   Frontend: http://localhost:5173
 echo   Backend:  http://localhost:5000
 echo.
-echo   To connect from another device on the same Wi-Fi:
-echo   Open http://YOUR-IPv4-ADDRESS:5173
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do echo   Detected: http://%%a:5173
+echo   Waiting for the servers to be ready...
+timeout /t 6 /nobreak >nul
+echo   Opening http://localhost:5173 in your browser...
+start "" http://localhost:5173
+echo.
+echo   Other devices on the shop network open:
+for /f %%a in ('powershell -NoProfile -Command "Get-NetAdapter | Where-Object Status -eq 'Up' | Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object IPAddress -notlike '169.*' | Select-Object -ExpandProperty IPAddress"') do echo     http://%%a:5173
+echo   (only adapters that are actually connected are listed)
 echo   Allow Node.js through Windows Firewall on Private networks if prompted.
 echo ============================================
 echo   Press any key to stop all servers...
