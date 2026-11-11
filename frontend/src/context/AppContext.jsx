@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppContext } from './context'
 import { useAuth } from './AuthContext'
 
-const API = `/api`
+const API = import.meta.env.VITE_API_URL || '/api'
 const TYPE_KEY = { Retail: 'retail_price', Wholesale: 'wholesale_price', Optional: 'optional_price' }
 let nextLineId = 1
 
@@ -196,8 +196,7 @@ export function AppProvider({ children }) {
   const deleteProduct = async (id) => {
     try {
       await fetch(`${API}/products/${id}`, { method: 'DELETE' })
-      setProducts(prev => prev.filter(p => p.id !== id))
-      setCart(prev => prev.filter(item => item.product_id !== id))
+      setProducts(prev => prev.filter(item => item.product_id !== id))
       await fetchProducts()
     } catch (err) {
       console.error('Failed to delete product:', err)
@@ -313,11 +312,7 @@ export function AppProvider({ children }) {
     if (quantity <= 0) {
       setCart(prev => prev.filter(item => item.lineId !== lineId))
     } else {
-      setCart(prev =>
-        prev.map(item =>
-          item.lineId === lineId ? { ...item, quantity } : item
-        )
-      )
+      setCart(prev => prev.map(item => item.lineId === lineId ? { ...item, quantity } : item))
     }
   }
 
@@ -357,15 +352,11 @@ export function AppProvider({ children }) {
         }),
       })
 
-      // The server may answer with a JSON error (400/401/500) or, while the POS
-      // server is restarting, with a non-JSON proxy error page. Never treat either
-      // of those as a placed order, and never wipe the cart when it fails.
       let data = null
       try { data = await res.json() } catch { data = null }
 
       if (!res.ok || !data || data.error) {
-        const message = (data && data.error)
-          || `The server could not save this order (HTTP ${res.status}). Please try again.`
+        const message = (data && data.error) || `The server could not save this order (HTTP ${res.status}). Please try again.`
         console.error('Failed to place order:', message)
         return { error: message }
       }
@@ -404,7 +395,7 @@ export function AppProvider({ children }) {
     }
   }
 
-const updateOrderStatus = async (orderId, status) => {
+  const updateOrderStatus = async (orderId, status) => {
     try {
       const res = await fetch(`${API}/orders/${orderId}/status`, {
         method: 'PUT',
@@ -432,7 +423,7 @@ const updateOrderStatus = async (orderId, status) => {
         try {
           const data = await res.json()
           if (data?.error) message = data.error
-        } catch { /* response was not JSON */ }
+        } catch { }
         if (res.status === 401) message = 'Your session expired. Please sign in again.'
         if (res.status === 403) message = message === `Server rejected the request (HTTP 403)` ? 'You do not have permission to do that.' : message
         return { ok: false, error: message }
