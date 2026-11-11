@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, createContext } from 'react'
 
 const AuthContext = createContext()
 
-const API = `/api`
+const API = import.meta.env.VITE_API_URL || '/api'
 
 function loadUser() {
   try {
